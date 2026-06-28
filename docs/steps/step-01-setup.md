@@ -39,7 +39,6 @@ restaurant-platform/
 ### 1.2 docker-compose.yml
 
 ```yaml
-version: '3.8'
 services:
   db:
     image: timescale/timescaledb:latest-pg15
