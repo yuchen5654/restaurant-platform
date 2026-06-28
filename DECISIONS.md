@@ -108,5 +108,13 @@ When the commit service finds no fuzzy match (cutoff 0.7) for an extracted ingre
 
 `alembic revision --autogenerate` detected the TimescaleDB partition indexes on `sales_by_item` and `sales_summaries` as "removed" (they're not in Base.metadata but exist in the DB). The `drop_index` calls were removed from the migration before running `alembic upgrade head`. Same fix as previous steps.
 
+## 2026-06-28 — food_cost_spike filters menu_item_id IS NOT NULL
+
+The food cost % query only sums rows where `menu_item_id` is set. Unmapped POS items (raw_pos_name rows) have `food_cost = 0` because depletion never ran for them — including them would dilute the true food cost percentage and hide spikes. Only fully-mapped, depleted sales rows are used for the trailing average and today's figure.
+
+## 2026-06-28 — Alert model uses extra_data not metadata for JSON column
+
+SQLAlchemy's `DeclarativeBase` already has a `metadata` class attribute (`MetaData`). Adding a column named `metadata` shadows it at the class level, breaking Alembic and the ORM mapper. The JSON catch-all column is named `extra_data` instead.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->

@@ -11,11 +11,12 @@ app.add_middleware(
 )
 
 from app.routers import auth, recipes, sales
-from app.routers import ingestion
+from app.routers import ingestion, alerts
 app.include_router(auth.router)
 app.include_router(recipes.router)
 app.include_router(sales.router)
 app.include_router(ingestion.router)
+app.include_router(alerts.router)
 
 
 @app.get('/health')

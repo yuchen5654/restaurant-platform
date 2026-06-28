@@ -5,6 +5,7 @@ from app.models.inventory import (
 from app.models.recipe import MenuItem, RecipeLine
 from app.models.sales import SalesSummary, SalesByItem, PosItemMapping
 from app.models.ingestion import CsvColumnMapping, StagedIngestion
+from app.models.alerts import Alert
 
 __all__ = [
     'Restaurant', 'User',
@@ -12,4 +13,5 @@ __all__ = [
     'MenuItem', 'RecipeLine',
     'SalesSummary', 'SalesByItem', 'PosItemMapping',
     'CsvColumnMapping', 'StagedIngestion',
+    'Alert',
 ]

@@ -43,5 +43,22 @@ def pull_all_toast_restaurants():
 
 @celery_app.task
 def run_nightly_alerts():
-    """Placeholder — implemented in Step 6."""
-    pass
+    from app.services.alert_service import run_alerts_for_restaurant
+
+    db    = SessionLocal()
+    today = datetime.now(timezone.utc)
+    try:
+        restaurants = (
+            db.query(Restaurant)
+            .filter(Restaurant.is_active.is_(True))
+            .all()
+        )
+        for r in restaurants:
+            try:
+                alerts = run_alerts_for_restaurant(db, str(r.id), today)
+                if alerts:
+                    logger.info('Restaurant %s: %d alert(s) stored', r.name, len(alerts))
+            except Exception:
+                logger.exception('Alert check failed for restaurant %s', r.name)
+    finally:
+        db.close()
