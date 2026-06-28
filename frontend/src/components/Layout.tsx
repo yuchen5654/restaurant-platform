@@ -4,6 +4,7 @@ const NAV = [
   { to: '/dashboard',       label: 'Dashboard' },
   { to: '/sales/entry',     label: 'Sales Entry' },
   { to: '/ingestion',       label: 'Ingestion' },
+  { to: '/ingredients',     label: 'Ingredients' },
   { to: '/inventory/count', label: 'Inventory Count' },
   { to: '/recipes',         label: 'Recipe Builder' },
   { to: '/waste',           label: 'Waste Log' },

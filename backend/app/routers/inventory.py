@@ -1,6 +1,7 @@
-"""Inventory-facing HTTP endpoints: ingredient list, batch count, waste log."""
+"""Inventory-facing HTTP endpoints: ingredient CRUD, batch count, waste log."""
 import uuid as _uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +23,30 @@ def _to_uuid(val) -> _uuid.UUID:
 
 
 # ---------------------------------------------------------------------------
+# Ingredient schemas
+# ---------------------------------------------------------------------------
+
+class _IngredientCreate(BaseModel):
+    name:                  str
+    category:              Optional[str]     = None
+    unit:                  str
+    current_cost_per_unit: Decimal
+    par_level:             Optional[Decimal] = None
+    reorder_qty:           Optional[Decimal] = None
+    current_stock:         Optional[Decimal] = Decimal('0')
+
+
+class _IngredientPatch(BaseModel):
+    name:                  Optional[str]     = None
+    category:              Optional[str]     = None
+    unit:                  Optional[str]     = None
+    current_cost_per_unit: Optional[Decimal] = None
+    par_level:             Optional[Decimal] = None
+    reorder_qty:           Optional[Decimal] = None
+    current_stock:         Optional[Decimal] = None
+
+
+# ---------------------------------------------------------------------------
 # Ingredients
 # ---------------------------------------------------------------------------
 
@@ -36,6 +61,47 @@ def list_ingredients(
         .order_by(Ingredient.category.nullslast(), Ingredient.name)
         .all()
     )
+
+
+@ingredients_router.post('/', status_code=201)
+def create_ingredient(
+    body: _IngredientCreate,
+    db:   Session = Depends(get_db),
+    rid:  str     = Depends(get_current_restaurant_id),
+):
+    ing = Ingredient(
+        restaurant_id         = _to_uuid(rid),
+        name                  = body.name,
+        category              = body.category,
+        unit                  = body.unit,
+        current_cost_per_unit = body.current_cost_per_unit,
+        par_level             = body.par_level,
+        reorder_qty           = body.reorder_qty,
+        current_stock         = body.current_stock if body.current_stock is not None else Decimal('0'),
+    )
+    db.add(ing)
+    db.commit()
+    db.refresh(ing)
+    return ing
+
+
+@ingredients_router.patch('/{ingredient_id}')
+def update_ingredient(
+    ingredient_id: str,
+    body: _IngredientPatch,
+    db:   Session = Depends(get_db),
+    rid:  str     = Depends(get_current_restaurant_id),
+):
+    rid_uuid = _to_uuid(rid)
+    ing      = db.get(Ingredient, _to_uuid(ingredient_id))
+    if not ing or ing.restaurant_id != rid_uuid:
+        raise HTTPException(404, 'Ingredient not found')
+    # Only update fields the caller explicitly included in the request body.
+    for field in body.model_fields_set:
+        setattr(ing, field, getattr(body, field))
+    db.commit()
+    db.refresh(ing)
+    return ing
 
 
 # ---------------------------------------------------------------------------
