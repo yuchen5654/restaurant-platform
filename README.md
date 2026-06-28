@@ -116,7 +116,7 @@ The database is seeded with one account:
 | Field    | Value                  |
 |----------|------------------------|
 | Email    | `owner@testbistro.com` |
-| Password | `pw`                   |
+| Password | `devpassword123`       |
 
 ---
 
