@@ -52,5 +52,13 @@ The API surface of all bumped packages is backwards-compatible for the patterns 
 
 TimescaleDB requires every unique constraint (including the primary key) to include the partition column. `sales_summaries` and `sales_by_item` therefore use a composite primary key `(id, business_date)` instead of `id` alone. The ORM models reflect this by marking `business_date` as `primary_key=True` alongside `id`. Neither table is referenced by a foreign key from any other table, so there is no cascade impact. This is the standard TimescaleDB pattern for UUID-keyed hypertables.
 
+## 2026-06-27 — Services normalise IDs to UUID before db.get() and tenant checks
+
+SQLAlchemy's `UUID(as_uuid=True)` columns store Python `uuid.UUID` objects in the identity map. Passing a plain string to `db.get()` or comparing with `!=` against a UUID column always mismatches — `db.get()` misses the identity map and the tenant check `restaurant_id != "string"` always evaluates True. All service functions now run IDs through `_to_uuid()` before lookup and comparison. This is consistent across `inventory_service`, `depletion_service`, and (pre-emptively) any future service that accepts IDs from router path parameters.
+
+## 2026-06-27 — log_waste adds visible warning on below-zero stock
+
+The step file used `max(0, ...)` to clamp stock silently. The hard rule says "do not silently clamp." `log_waste` now logs a WARNING before clamping, consistent with `deplete_from_sale`. The clamping itself is retained so `current_stock` never stores a negative value in the DB; the warning surfaces the data quality issue.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->
