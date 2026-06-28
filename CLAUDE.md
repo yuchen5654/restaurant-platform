@@ -25,7 +25,7 @@ Multi-tenant restaurant data & analytics platform for independent operators (1�
 - [x] Step 5 — Toast POS integration (`step-05-toast.md`)
 - [x] Step 5B — Universal ingestion layer (`step-05b-ingestion.md`)
 - [x] Step 6 — Alert engine (`step-06-alerts.md`)
-- [ ] Step 7 — React frontend (`step-07-frontend.md`)
+- [x] Step 7 — React frontend (`step-07-frontend.md`)
 - [ ] Step 8 — LightGBM forecasting (`step-08-forecasting.md`)
 - [ ] Step 9 — LLM Q&A layer (`step-09-llm.md`)
 - [ ] Step 10 — AWS deployment (`step-10-aws.md`)

@@ -116,5 +116,29 @@ The food cost % query only sums rows where `menu_item_id` is set. Unmapped POS i
 
 SQLAlchemy's `DeclarativeBase` already has a `metadata` class attribute (`MetaData`). Adding a column named `metadata` shadows it at the class level, breaking Alembic and the ORM mapper. The JSON catch-all column is named `extra_data` instead.
 
+## 2026-06-28 — Vite instead of create-react-app
+
+CRA has not received updates since 2022 and is broken with Node 22+. Vite (v5) is the React team's recommended replacement — faster HMR, smaller build output, actively maintained. The resulting project structure and all imported packages (axios, react-query, react-router-dom, Tailwind, Recharts) are identical to what the step file specified.
+
+## 2026-06-28 — Vite dev server runs on port 5173; CORS updated to match
+
+Vite defaults to port 5173, not 3000. Rather than forcing 5173 to 3000 (non-standard), `http://localhost:5173` was added alongside `http://localhost:3000` in `app/main.py` CORS origins. Both ports remain in the allowlist so a CRA fallback on 3000 would still work.
+
+## 2026-06-28 — Three new backend routers for frontend data needs
+
+The five frontend pages required endpoints not yet in the API: ingredient listing (needed by InventoryCount, RecipeBuilder, WasteLog), batch inventory count submission, and waste logging. Added `app/routers/inventory.py` with `ingredients_router` (`/ingredients/`), `counts_router` (`/inventory-counts/`), and `waste_router` (`/waste/`). All three delegate to existing services and follow the same auth/UUID conventions.
+
+## 2026-06-28 — tsconfig noUnusedLocals/noUnusedParameters set to false
+
+Strict unused-variable checking is incompatible with idiomatic React event handlers and query data typed as `any`. Set both flags to false to allow clean builds without fighting TypeScript on scaffolding patterns. The remaining strict flags (strict, isolatedModules, noFallthroughCasesInSwitch) are left enabled.
+
+## 2026-06-28 — Recharts pinned to v2 (deprecation noted)
+
+Step 7 specifies `recharts`. npm resolved to v2.15.4 which is deprecated in favour of v3. Pinned to v2 for now since v3 has a migration guide and the dashboard table doesn't use Recharts yet (charts are a Phase 2 / Step 8 addition). Upgrade to v3 before adding chart components.
+
+## 2026-06-28 — ReviewIngestion.tsx extracted_data fix (5B Part 2)
+
+Step 5B Part 2's `ReviewIngestion.tsx` calls `JSON.parse(staged.extracted_data)`. Our backend stores `extracted_data` as a native JSON column (Python dict), so the API response already delivers a parsed object. The fix for the next session: use `staged.extracted_data` directly, no `JSON.parse`.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->
