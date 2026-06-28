@@ -140,5 +140,21 @@ Step 7 specifies `recharts`. npm resolved to v2.15.4 which is deprecated in favo
 
 Step 5B Part 2's `ReviewIngestion.tsx` calls `JSON.parse(staged.extracted_data)`. Our backend stores `extracted_data` as a native JSON column (Python dict), so the API response already delivers a parsed object. The fix for the next session: use `staged.extracted_data` directly, no `JSON.parse`.
 
+## 2026-06-28 — ReviewIngestion uses extracted_data directly (no JSON.parse)
+
+The step file called `JSON.parse(staged.extracted_data)` because it assumed the JSON column was stored as a string. Our backend stores native Python dicts in the `JSON` column, so FastAPI serialises `extracted_data` as a proper JSON object in the API response — the frontend receives it already parsed. Removing `JSON.parse` prevents a runtime error ("unexpected token" when parsing an already-parsed object).
+
+## 2026-06-28 — ReviewIngestion is a page component using useParams, not a prop-based component
+
+The step file defines `ReviewIngestion({ stagedId }: { stagedId: string })` as a component that receives its ID via props. Since it's wired as a page route (`/ingestion/review/:id`), it reads the ID from `useParams<{ id: string }>()` instead. This avoids an awkward wrapper and matches React Router conventions.
+
+## 2026-06-28 — confirm endpoint accepts optional corrected_data body
+
+The ReviewIngestion UI lets operators edit extracted line items before confirming. Those edits must reach the commit service. Updated `POST /ingestion/staged/{id}/confirm` to accept `_ConfirmBody(corrected_data: Any = None)` and pass it through to `commit_staged_ingestion`. When `corrected_data` is None (no edits), the service falls back to `staged.extracted_data` unchanged.
+
+## 2026-06-28 — QuickSalesEntry uses noon UTC for business_date
+
+`new Date('yyyy-MM-dd')` parses as midnight UTC. In timezones behind UTC this can shift the date back by one day when the string is round-tripped. Using `new Date(date + 'T12:00:00Z')` anchors to noon UTC, which is unambiguously within the target calendar date in every timezone from UTC-11 to UTC+11.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->

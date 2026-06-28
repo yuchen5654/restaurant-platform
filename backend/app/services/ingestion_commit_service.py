@@ -197,6 +197,7 @@ def commit_staged_ingestion(
     restaurant_id: str,
     staged_id: str,
     confirmed_by: str,
+    corrected_data: dict | None = None,
 ) -> dict:
     rid    = _to_uuid(restaurant_id)
     staged = db.get(StagedIngestion, _to_uuid(staged_id))
@@ -209,13 +210,16 @@ def commit_staged_ingestion(
     if not commit_fn:
         raise ValueError(f'No commit handler for import_type: {staged.import_type}')
 
+    # Use operator's in-UI edits if provided; fall back to stored extraction.
+    data = corrected_data if corrected_data is not None else staged.extracted_data
+
     # Set confirmed fields before the sub-service commits — the sub-service's
     # db.commit() will persist the status change atomically with the live data.
     staged.status       = 'confirmed'
     staged.confirmed_at = datetime.now(timezone.utc)
     staged.confirmed_by = _to_uuid(confirmed_by)
 
-    result = commit_fn(db, restaurant_id, staged.extracted_data)
+    result = commit_fn(db, restaurant_id, data)
 
     # _commit_count and _commit_sales commit internally; _commit_invoice delegates
     # to process_invoice which commits. Ensure staged status is persisted if the

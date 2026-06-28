@@ -3,6 +3,8 @@ import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { IngestionHub } from './pages/IngestionHub'
+import { ReviewIngestion } from './pages/ReviewIngestion'
+import { QuickSalesEntry } from './pages/QuickSalesEntry'
 import { InventoryCount } from './pages/InventoryCount'
 import { RecipeBuilder } from './pages/RecipeBuilder'
 import { WasteLog } from './pages/WasteLog'
@@ -20,8 +22,8 @@ export default function App() {
           <Route index element={<Navigate to='/dashboard' replace />} />
           <Route path='dashboard'            element={<Dashboard />} />
           <Route path='ingestion'            element={<IngestionHub />} />
-          <Route path='ingestion/review/:id' element={<ComingSoon label='Review Ingestion' />} />
-          <Route path='sales/entry'          element={<ComingSoon label='Quick Sales Entry' />} />
+          <Route path='ingestion/review/:id' element={<ReviewIngestion />} />
+          <Route path='sales/entry'          element={<QuickSalesEntry />} />
           <Route path='inventory/count'      element={<InventoryCount />} />
           <Route path='recipes'              element={<RecipeBuilder />} />
           <Route path='waste'                element={<WasteLog />} />
@@ -29,14 +31,5 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
-  )
-}
-
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className='p-8 text-slate-400 text-sm'>
-      <p className='font-semibold text-slate-600 mb-1'>{label}</p>
-      <p>Built in Step 5B Part 2 — coming next session.</p>
-    </div>
   )
 }

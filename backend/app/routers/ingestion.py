@@ -1,7 +1,9 @@
 import json
 import uuid as _uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -22,6 +24,10 @@ from app.services.ocr_ingestion_service import stage_image_upload
 from app.services.voice_ingestion_service import stage_voice_count
 
 router = APIRouter(prefix='/ingestion', tags=['ingestion'])
+
+
+class _ConfirmBody(BaseModel):
+    corrected_data: Any = None
 
 
 def _to_uuid(val) -> _uuid.UUID:
@@ -138,12 +144,13 @@ def get_staged(
 @router.post('/staged/{staged_id}/confirm')
 def confirm_staged(
     staged_id: str,
+    body: _ConfirmBody = _ConfirmBody(),
     db:   Session = Depends(get_db),
     rid:  str     = Depends(get_current_restaurant_id),
     user          = Depends(get_current_user),
 ):
     try:
-        result = commit_staged_ingestion(db, rid, staged_id, str(user.id))
+        result = commit_staged_ingestion(db, rid, staged_id, str(user.id), body.corrected_data)
         return {'ok': True, **result}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
