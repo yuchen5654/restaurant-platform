@@ -8,6 +8,7 @@ const NAV = [
   { to: '/inventory/count', label: 'Inventory Count' },
   { to: '/recipes',         label: 'Recipe Builder' },
   { to: '/waste',           label: 'Waste Log' },
+  { to: '/ask',             label: 'Ask' },
 ]
 
 export function Layout() {
