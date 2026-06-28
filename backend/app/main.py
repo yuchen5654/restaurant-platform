@@ -13,6 +13,7 @@ app.add_middleware(
 from app.routers import auth, recipes, sales
 from app.routers import ingestion, alerts
 from app.routers.inventory import ingredients_router, counts_router, waste_router
+from app.routers import ai
 app.include_router(auth.router)
 app.include_router(recipes.router)
 app.include_router(sales.router)
@@ -21,6 +22,7 @@ app.include_router(alerts.router)
 app.include_router(ingredients_router)
 app.include_router(counts_router)
 app.include_router(waste_router)
+app.include_router(ai.router)
 
 
 @app.get('/health')

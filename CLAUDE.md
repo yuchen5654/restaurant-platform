@@ -27,7 +27,7 @@ Multi-tenant restaurant data & analytics platform for independent operators (1�
 - [x] Step 6 — Alert engine (`step-06-alerts.md`)
 - [x] Step 7 — React frontend (`step-07-frontend.md`)
 - [ ] Step 8 — LightGBM forecasting (`step-08-forecasting.md`)
-- [ ] Step 9 — LLM Q&A layer (`step-09-llm.md`)
+- [x] Step 9 — LLM Q&A layer (`step-09-llm.md`)
 - [ ] Step 10 — AWS deployment (`step-10-aws.md`)
 
 Status key: `[ ]` not started · `[~]` in progress · `[x]` complete

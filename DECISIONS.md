@@ -156,5 +156,21 @@ The ReviewIngestion UI lets operators edit extracted line items before confirmin
 
 `new Date('yyyy-MM-dd')` parses as midnight UTC. In timezones behind UTC this can shift the date back by one day when the string is round-tripped. Using `new Date(date + 'T12:00:00Z')` anchors to noon UTC, which is unambiguously within the target calendar date in every timezone from UTC-11 to UTC+11.
 
+## 2026-06-28 — LLM context adds low-stock alerts beyond the step file spec
+
+The step file assembles food-cost summary (7d, 30d) and top-15 items. The service also includes `check_low_stock()` output and unread alert count. These are zero-cost SQL calls that materially improve answer quality — an operator asking "what should I focus on?" gets a complete picture without a second question. Adding them at context-assembly time costs nothing; the LLM is already being called.
+
+## 2026-06-28 — claude-sonnet-4-6 chosen for Q&A (not Opus)
+
+The step file specifies `claude-sonnet-4-6` for structured Q&A. Sonnet is well-suited for reasoning over pre-assembled structured context: it doesn't need deep reasoning, just accurate synthesis of SQL-fetched facts. Keeping Opus for heavier workloads and Sonnet for daily Q&A is an appropriate cost-quality split. The model can be changed per route without structural changes.
+
+## 2026-06-28 — No adaptive thinking on Sonnet Q&A endpoint
+
+Per verified SDK syntax (anthropic 0.112.0): `thinking: {"type": "adaptive"}` is supported on Sonnet 4.6 but not needed here — the context is pre-structured SQL facts, not a reasoning-heavy task. Not setting `thinking` keeps latency and token count low. Add it if operators ask questions that require multi-step inference.
+
+## 2026-06-28 — ANTHROPIC_API_KEY required in .env for LLM service
+
+`app/services/llm_service.py` reads the key via `anthropic.Anthropic()` which checks `ANTHROPIC_API_KEY` at first API call. The key must be added to `backend/.env`: `ANTHROPIC_API_KEY=sk-ant-...`. Without it, `POST /ai/ask` returns 502. Context assembly (SQL queries) is fully functional without the key.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->
