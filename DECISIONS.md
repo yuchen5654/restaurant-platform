@@ -72,5 +72,17 @@ The step file suggests raw `dict` request bodies for the first pass. Conventions
 
 `+00:00` in ISO datetime strings is decoded as a space when embedded directly in query-string URLs. Pass datetime params via `httpx.get(..., params={...})` so the client URL-encodes the `+` correctly. This applies to any endpoint accepting `datetime` query params.
 
+## 2026-06-28 — Extracted _process_normalized() from ingest_toast_day
+
+The mapping/depletion logic was pulled into a separate sync helper `_process_normalized()` inside `pos_ingestion_service`. This keeps the async HTTP concerns (token + fetch) isolated from the business logic and makes the mapping/depletion path independently testable without needing async mocking of the entire pipeline. `ingest_toast_day` remains async and calls `_process_normalized` after resolving the HTTP calls.
+
+## 2026-06-28 — Celery task uses asyncio.run() per restaurant
+
+`pull_all_toast_restaurants` is a standard synchronous Celery task that calls `asyncio.run(ingest_toast_day(...))` for each restaurant. Each call creates and tears down a fresh event loop. This is correct in a default Celery prefork worker (no running loop), and simpler than configuring Celery's asyncio pool. If the worker count scales significantly, switching to Celery's `asyncio` task class or gathering all restaurant coroutines in one `asyncio.run()` call is a straightforward upgrade.
+
+## 2026-06-28 — mock.patch targets toast_service, not pos_ingestion_service
+
+`ingest_toast_day` imports `get_toast_token` and `fetch_toast_orders` via a deferred local import from `toast_service`. Patches must target `app.services.toast_service.<name>` (where the names live at call time), not `app.services.pos_ingestion_service.<name>` (where they are not module-level attributes).
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->
