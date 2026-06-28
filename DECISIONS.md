@@ -60,5 +60,17 @@ SQLAlchemy's `UUID(as_uuid=True)` columns store Python `uuid.UUID` objects in th
 
 The step file used `max(0, ...)` to clamp stock silently. The hard rule says "do not silently clamp." `log_waste` now logs a WARNING before clamping, consistent with `deplete_from_sale`. The clamping itself is retained so `current_stock` never stores a negative value in the DB; the warning surfaces the data quality issue.
 
+## 2026-06-28 — Replaced passlib with direct bcrypt calls
+
+`passlib` 1.7.4 (last release 2020) is incompatible with `bcrypt` >= 4.0, which removed the `__about__` attribute passlib reads at startup. Since `bcrypt` 5.x is installed for Python 3.14, passlib always errors. Replaced with two thin helpers (`hash_password` / `verify_password`) in `auth.py` that call `bcrypt.hashpw` / `bcrypt.checkpw` directly. Removed `passlib[bcrypt]` from `requirements.txt`; `bcrypt>=5.0.0` remains.
+
+## 2026-06-28 — Pydantic schemas for recipe/sales request bodies (not raw dicts)
+
+The step file suggests raw `dict` request bodies for the first pass. Conventions require Pydantic schemas in `app/schemas/`. Used `MenuItemCreate`, `RecipeLineCreate` (in `schemas/recipe.py`) and `SaleItem`, `SalesBatch` (in `schemas/sales.py`) from the start — avoids a second pass and gives validation for free. `SaleItem`/`SalesBatch` were already Pydantic models in the step file; moved them to the schemas layer to keep routers thin.
+
+## 2026-06-28 — datetime query params must be passed via httpx params dict (not f-string URL)
+
+`+00:00` in ISO datetime strings is decoded as a space when embedded directly in query-string URLs. Pass datetime params via `httpx.get(..., params={...})` so the client URL-encodes the `+` correctly. This applies to any endpoint accepting `datetime` query params.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->

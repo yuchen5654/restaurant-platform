@@ -10,9 +10,11 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-# Routers registered here as each step is completed:
-# from app.routers import auth, recipes, sales, ingestion, ai
-# app.include_router(auth.router)
+from app.routers import auth, recipes, sales
+app.include_router(auth.router)
+app.include_router(recipes.router)
+app.include_router(sales.router)
+# ingestion and ai routers added in later steps
 
 
 @app.get('/health')
