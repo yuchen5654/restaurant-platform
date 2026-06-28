@@ -48,5 +48,9 @@ The API surface of all bumped packages is backwards-compatible for the patterns 
 
 `alembic.ini` has `sqlalchemy.url` set to the local dev connection string (`postgresql://rp_user:localdevpassword@localhost/restaurant_platform`). This is intentional for local dev only — production will override via env var / Secrets Manager. The `.env` file (gitignored) takes precedence at runtime through `app/config.py`.
 
+## 2026-06-27 — Composite PK (id, business_date) on hypertables
+
+TimescaleDB requires every unique constraint (including the primary key) to include the partition column. `sales_summaries` and `sales_by_item` therefore use a composite primary key `(id, business_date)` instead of `id` alone. The ORM models reflect this by marking `business_date` as `primary_key=True` alongside `id`. Neither table is referenced by a foreign key from any other table, so there is no cascade impact. This is the standard TimescaleDB pattern for UUID-keyed hypertables.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->
