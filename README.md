@@ -49,6 +49,77 @@ This is the project scaffold for building the Restaurant Data & Analytics Platfo
    scoring isn't matching the spec — fix it to match."
    ```
 
+## Running Locally
+
+**Prerequisites:** Docker Desktop, Python 3.14+, Node 22+.
+
+### 1 — Start the database and cache
+
+```bash
+docker compose up -d
+```
+
+This starts PostgreSQL + TimescaleDB on port 5432 and Redis on port 6379.
+
+### 2 — Backend
+
+```bash
+cd backend
+
+# First time only: create the virtualenv and install packages
+python -m venv venv
+source venv/Scripts/activate   # Windows
+# source venv/bin/activate     # Mac / Linux
+pip install -r requirements.txt
+
+# Copy the env template and fill in any API keys you have
+cp .env.example .env           # if it doesn't exist, create it from the block below
+
+# Apply all migrations
+alembic upgrade head
+
+# Start the API server (hot-reload)
+uvicorn app.main:app --reload
+```
+
+The API is now at **http://localhost:8000** · interactive docs at **http://localhost:8000/docs**.
+
+**Minimum `.env`** (the app starts with just these; API keys are optional until you use OCR/voice/LLM features):
+
+```
+DATABASE_URL=postgresql://rp_user:localdevpassword@localhost/restaurant_platform
+SECRET_KEY=change-this-in-production-use-secrets-manager
+REDIS_URL=redis://localhost:6379/0
+ANTHROPIC_API_KEY=          # required for /ai/ask (Step 9)
+OPENAI_API_KEY=             # required for voice ingestion (Step 5B)
+```
+
+### 3 — Frontend
+
+```bash
+cd frontend
+
+# First time only
+cp .env.example .env        # sets VITE_API_URL=http://localhost:8000
+npm install
+
+# Start the dev server (hot-reload)
+npm run dev
+```
+
+The UI is now at **http://localhost:5173**.
+
+### 4 — Dev login
+
+The database is seeded with one account:
+
+| Field    | Value                  |
+|----------|------------------------|
+| Email    | `owner@testbistro.com` |
+| Password | `pw`                   |
+
+---
+
 ## Why this structure
 
 - **CLAUDE.md is Claude Code's memory between sessions.** It has no memory otherwise. Keeping the build status and rules current here is what prevents drift over a long build.
