@@ -36,6 +36,23 @@ restaurant-platform/
 - **services/** — all business logic. Depletion, food cost math, ingestion, alerts. Services take a `db: Session` and return data or ORM objects.
 - **workers/** — Celery tasks that call services on a schedule.
 
+### UUID normalisation in services
+
+`UUID(as_uuid=True)` columns store Python `uuid.UUID` objects. A plain string never equals a UUID — `db.get()` misses the identity map and tenant comparisons (`col != "string"`) always evaluate True. Every service function that receives an ID from a router (where path parameters are strings) must normalise before use:
+
+```python
+import uuid as _uuid
+
+def _to_uuid(val) -> _uuid.UUID:
+    return val if isinstance(val, _uuid.UUID) else _uuid.UUID(str(val))
+
+# then in the function:
+obj = db.get(MyModel, _to_uuid(some_id))
+if obj.restaurant_id != _to_uuid(restaurant_id): ...
+```
+
+Define `_to_uuid` once at the top of each service file that needs it.
+
 If you're writing business logic in a router, stop — it belongs in a service.
 
 ---
