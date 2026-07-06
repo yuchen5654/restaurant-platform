@@ -400,10 +400,11 @@ def get_vendor_comparison(db: Session, restaurant_id: str, ingredient_id: str) -
         return []
 
     from app.models.inventory import Vendor
-    vendor_rows = db.execute(
+
+    # Aggregate per vendor: avg price and purchase count (unchanged)
+    agg_rows = db.execute(
         select(
             VendorInvoice.vendor_id,
-            func.max(InvoiceLineItem.unit_cost).label('last_price'),
             func.avg(InvoiceLineItem.unit_cost).label('avg_price'),
             func.count(InvoiceLineItem.id).label('cnt'),
         )
@@ -417,14 +418,28 @@ def get_vendor_comparison(db: Session, restaurant_id: str, ingredient_id: str) -
     ).all()
 
     rows = []
-    for vr in vendor_rows:
-        vendor = db.get(Vendor, vr.vendor_id)
+    for ar in agg_rows:
+        # Most recent price: unit_cost from the line with the latest received_at for this vendor
+        last_price = db.execute(
+            select(InvoiceLineItem.unit_cost)
+            .join(VendorInvoice, InvoiceLineItem.invoice_id == VendorInvoice.id)
+            .where(
+                VendorInvoice.restaurant_id == rid,
+                VendorInvoice.vendor_id == ar.vendor_id,
+                InvoiceLineItem.ingredient_id == iid,
+                VendorInvoice.received_at >= since90,
+            )
+            .order_by(VendorInvoice.received_at.desc())
+            .limit(1)
+        ).scalar()
+
+        vendor = db.get(Vendor, ar.vendor_id)
         rows.append({
-            'vendor_id':      str(vr.vendor_id),
-            'vendor_name':    vendor.name if vendor else str(vr.vendor_id),
-            'last_price':     round(float(vr.last_price), 4),
-            'avg_price_90d':  round(float(vr.avg_price), 4),
-            'purchase_count': int(vr.cnt),
+            'vendor_id':      str(ar.vendor_id),
+            'vendor_name':    vendor.name if vendor else str(ar.vendor_id),
+            'last_price':     round(float(last_price), 4) if last_price is not None else 0.0,
+            'avg_price_90d':  round(float(ar.avg_price), 4),
+            'purchase_count': int(ar.cnt),
         })
     return rows
 
