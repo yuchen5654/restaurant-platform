@@ -172,5 +172,9 @@ Per verified SDK syntax (anthropic 0.112.0): `thinking: {"type": "adaptive"}` is
 
 `app/services/llm_service.py` reads the key via `anthropic.Anthropic()` which checks `ANTHROPIC_API_KEY` at first API call. The key must be added to `backend/.env`: `ANTHROPIC_API_KEY=sk-ant-...`. Without it, `POST /ai/ask` returns 502. Context assembly (SQL queries) is fully functional without the key.
 
+## 2026-07-06 — Inserted Insights Engine (Steps 11–13) and updated CLAUDE.md/conventions.md to as-built state; see step files for scope.
+
+Scaffold update pack applied: CLAUDE.md replaced with version that shows accurate Build Status (Steps 1–7/5B/6/9 complete, 8/10 gated, 11–13 new), Known Caveats section added, and stack corrected to as-built (Python 3.14, Vite on port 5173, dev login). Steps 11–13 step files added to docs/steps/. README.md replaced with scaffold-pack README (contains "how to apply" instructions for this pack). Conventions.md Insights Engine section (derived-not-stored, every insight ends in recommended_action, thresholds in restaurant_settings, divide-by-zero and coverage honesty) folded into conventions.md separately.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->

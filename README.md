@@ -1,142 +1,42 @@
-# Restaurant Platform — Build Scaffold
+# Restaurant Platform — Scaffold UPDATE Pack (July 2026)
 
-This is the project scaffold for building the Restaurant Data & Analytics Platform with Claude Code. It's structured for a long, multi-session build where you'll revisit steps many times.
+> **⚠ This pack was created separately from the original scaffold**, after Steps 1–7, 5B, 6, and 9 were built and verified. It adds the **Insights Engine** (new Steps 11–13) and brings the control docs in line with what was actually built.
 
-## What's here
-
-```
-.
-├── CLAUDE.md              ← Claude Code reads this automatically every session.
-│                            Control center: build status, hard rules, stack.
-├── DECISIONS.md           ← Running log of choices made mid-build (the "why").
-├── docs/
-│   ├── architecture.md    ← The stable big-picture "why". Read for context.
-│   ├── conventions.md     ← Naming, structure, patterns. Read before coding.
-│   └── steps/             ← One file per build step. The "how".
-│       ├── step-01-setup.md
-│       ├── step-02-schema.md
-│       ├── step-03-recipe-engine.md
-│       ├── step-04-api.md
-│       ├── step-05-toast.md
-│       ├── step-05b-ingestion.md        (Part 1: schema, CSV, OCR, voice)
-│       ├── step-05b-ingestion-part2.md  (Part 2: email, UI, commit, router)
-│       ├── step-06-alerts.md
-│       ├── step-07-frontend.md
-│       ├── step-08-forecasting.md
-│       ├── step-09-llm.md
-│       └── step-10-aws.md
-└── README.md              ← this file
-```
-
-## How to use it
-
-1. **Drop this whole folder into your project root** (or `git init` here and build inside it).
-
-2. **Start each Claude Code session scoped to one step:**
-   ```bash
-   claude "Read docs/steps/step-01-setup.md and docs/conventions.md.
-   Summarize what you'll build, then implement it."
-   ```
-
-3. **After each step:**
-   - `git commit` the work (so any step is recoverable)
-   - Update the checkbox in `CLAUDE.md`
-   - Log any non-obvious decision in `DECISIONS.md`
-
-4. **When revisiting a step** (debugging, refactoring), just point Claude Code at that one step file again:
-   ```bash
-   claude "Re-read docs/steps/step-05b-ingestion.md. The OCR confidence
-   scoring isn't matching the spec — fix it to match."
-   ```
-
-## Running Locally
-
-**Prerequisites:** Docker Desktop, Python 3.14+, Node 22+.
-
-### 1 — Start the database and cache
-
-```bash
-docker compose up -d
-```
-
-This starts PostgreSQL + TimescaleDB on port 5432 and Redis on port 6379.
-
-### 2 — Backend
-
-```bash
-cd backend
-
-# First time only: create the virtualenv and install packages
-python -m venv venv
-source venv/Scripts/activate   # Windows
-# source venv/bin/activate     # Mac / Linux
-pip install -r requirements.txt
-
-# Copy the env template and fill in any API keys you have
-cp .env.example .env           # if it doesn't exist, create it from the block below
-
-# Apply all migrations
-alembic upgrade head
-
-# Start the API server (hot-reload)
-uvicorn app.main:app --reload
-```
-
-The API is now at **http://localhost:8000** · interactive docs at **http://localhost:8000/docs**.
-
-**Minimum `.env`** (the app starts with just these; API keys are optional until you use OCR/voice/LLM features):
+## What's in this pack
 
 ```
-DATABASE_URL=postgresql://rp_user:localdevpassword@localhost/restaurant_platform
-SECRET_KEY=change-this-in-production-use-secrets-manager
-REDIS_URL=redis://localhost:6379/0
-ANTHROPIC_API_KEY=          # required for /ai/ask (Step 9)
-OPENAI_API_KEY=             # required for voice ingestion (Step 5B)
+restaurant-platform-scaffold-update/
+├── README.md                          ← this file (do NOT copy into the repo)
+├── CLAUDE.md                          ← REPLACES repo-root CLAUDE.md
+└── docs/
+    ├── conventions.md                 ← REPLACES docs/conventions.md
+    └── steps/
+        ├── step-11-insights-core.md   ← NEW
+        ├── step-12-insights-inputs.md ← NEW
+        └── step-13-insights-network.md← NEW
 ```
 
-### 3 — Frontend
+Everything replaced or added is internally marked with an "⚠ UPDATE — inserted July 2026" banner so the separately-inserted material is always distinguishable from the original.
 
-```bash
-cd frontend
+## How to apply (from the repo root `C:\Restaurant`)
 
-# First time only
-cp .env.example .env        # sets VITE_API_URL=http://localhost:8000
-npm install
+1. Copy `CLAUDE.md` over the existing root `CLAUDE.md`.
+2. Copy `docs/conventions.md` over the existing `docs/conventions.md`.
+3. Copy the three new step files into `docs/steps/`.
+4. Add a dated line to `DECISIONS.md`: *"2026-07-06 — Inserted Insights Engine (Steps 11–13) and updated CLAUDE.md/conventions.md to as-built state; see step files for scope."*
+5. Commit: `git add -A && git commit -m "Docs update: Insights Engine (Steps 11-13), as-built corrections" && git push`
 
-# Start the dev server (hot-reload)
-npm run dev
-```
+## What changed and why
 
-The UI is now at **http://localhost:5173**.
+- **CLAUDE.md** — Build Status now shows Steps 1–7/5B/6/9 complete with honest caveats (mock-verified Toast/OCR/voice; dormant AI pending API keys); stack corrected to as-built (Python 3.14, Vite/5173, dev login); Steps 11–13 added; "Known Caveats" section added; next-session pointer: **Step 11**.
+- **conventions.md** — original rules kept; small as-built corrections folded in (hypertable composite PK, noon-UTC business_date, `_to_uuid`, PATCH `model_fields_set`, verify-and-push workflow); a new marked **Insights Engine Conventions** section appended (derived-not-stored, every-insight-ends-in-an-action, threshold settings, min-cohort privacy rule, divide-by-zero and coverage honesty).
+- **Steps 11–13** — buildable specs, one session each, in the same self-contained format as steps 01–10:
+  - **11 — Insights Core:** variance (flagship), contribution margin $, menu-engineering 2×2, price inflation/vendor compare, par optimization, daypart/DOW patterns, cost sensitivity, break-even. Existing data only.
+  - **12 — New Inputs:** labor→prime cost, channels→channel profitability (+packaging as channel recipe lines), covers, waste reason codes, Toast comps/voids (gated on real credentials), weather, `restaurant_type` format modules.
+  - **13 — Network & Action:** peer benchmarking (n≥5 privacy rule), price test-and-learn, alert explanations, and the **Daily Action List** — the "decisions, not dashboards" surface.
 
-### 4 — Dev login
+## Instruction to Claude Code (first session with this pack)
 
-The database is seeded with one account:
+Open `CLAUDE.md`, confirm Build Status, then: **"Build Step 11 — read `docs/steps/step-11-insights-core.md` and `docs/conventions.md` first, summarize the plan, then implement."**
 
-| Field    | Value                  |
-|----------|------------------------|
-| Email    | `owner@testbistro.com` |
-| Password | `devpassword123`       |
-
----
-
-## Why this structure
-
-- **CLAUDE.md is Claude Code's memory between sessions.** It has no memory otherwise. Keeping the build status and rules current here is what prevents drift over a long build.
-- **Split step files keep context focused.** When you're on Step 5B, Claude Code reads only Step 5B — not the whole 40-page guide. Scoped, surgical, repeatable.
-- **DECISIONS.md answers "why is it like this?"** three months later, when the reasoning would otherwise be lost.
-
-## Build order
-
-Steps 1 → 2 → 3 → 4 → 5 → 5B → 6 → 7 complete **Phase 1** (a working MVP, ~70–92 hrs).
-Step 8 is **Phase 2** (needs 60+ days of live data first).
-Step 9 is **Phase 3**.
-Step 10 deploys to production after Phase 1 is validated.
-
-## First command to run
-
-If starting fresh, let Claude Code bootstrap its understanding:
-```bash
-claude "Read CLAUDE.md, docs/architecture.md, and docs/conventions.md.
-Tell me what this project is and what Step 1 involves. Don't write code yet."
-```
+The companion strategy/engineering context lives in the updated `Restaurant_Platform_Blueprint.docx` and `Restaurant_Platform_Build_Guide.docx` (both received matching, marked UPDATE sections).
