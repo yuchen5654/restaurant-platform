@@ -33,7 +33,7 @@ Multi-tenant restaurant data & analytics platform for independent operators (1�
 - [x] Step 9 — LLM Q&A layer (`step-09-llm.md`) — *context assembly verified (31.2% blended food cost); live Claude call untested — ANTHROPIC_API_KEY empty*
 - [ ] Step 10 — AWS deployment (`step-10-aws.md`) — **GATED: judgment call — deploy when there's a real user/demo/need**
 - [x] Step 11 — Insights core, existing data (`step-11-insights-core.md`)
-- [ ] Step 12 — Insights requiring new inputs (`step-12-insights-inputs.md`)
+- [x] Step 12 — Insights requiring new inputs (`step-12-insights-inputs.md`)
 - [ ] Step 13 — Network & action layer (`step-13-insights-network.md`)
 
 Status key: `[ ]` not started · `[~]` in progress · `[x]` complete

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
 
-type Tab = 'variance' | 'menu-eng' | 'margins' | 'price-trends' | 'pars' | 'patterns' | 'sensitivity' | 'break-even'
+type Tab = 'variance' | 'menu-eng' | 'margins' | 'price-trends' | 'pars' | 'patterns' | 'sensitivity' | 'break-even' | 'prime-cost' | 'channel' | 'waste' | 'adjustments'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'variance',     label: 'Variance' },
@@ -13,6 +13,10 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'patterns',     label: 'Patterns' },
   { id: 'sensitivity',  label: 'Sensitivity' },
   { id: 'break-even',   label: 'Break-Even' },
+  { id: 'prime-cost',   label: 'Prime Cost' },
+  { id: 'channel',      label: 'Channels' },
+  { id: 'waste',        label: 'Waste' },
+  { id: 'adjustments',  label: 'Adjustments' },
 ]
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -443,6 +447,169 @@ function BreakEvenTab() {
   )
 }
 
+// ── Prime Cost ───────────────────────────────────────────────────────────────
+function PrimeCostTab() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['insights', 'prime-cost'],
+    queryFn: () => api.get('/insights/prime-cost?window_days=28').then(r => r.data),
+  })
+  if (isLoading) return <EmptyState msg='Loading…' />
+  if (data?.data_gap && !data.prime_cost_pct) return (
+    <SectionCard title='Prime Cost (28d)'>
+      <p className='text-amber-700 text-sm bg-amber-50 px-3 py-2 rounded-lg'>{data.data_gap}</p>
+    </SectionCard>
+  )
+  const over62 = data?.flag_over_62
+  return (
+    <SectionCard title='Prime Cost (28d)'>
+      <div className='grid grid-cols-3 gap-4 mb-6'>
+        <div className='text-center p-4 bg-slate-50 rounded-lg'>
+          <div className='text-2xl font-bold text-slate-800'>{data?.food_cost_pct?.toFixed(1) ?? '—'}%</div>
+          <div className='text-xs text-slate-400 mt-1'>Food cost %</div>
+        </div>
+        <div className='text-center p-4 bg-slate-50 rounded-lg'>
+          <div className='text-2xl font-bold text-slate-800'>{data?.labor_pct?.toFixed(1) ?? '—'}%</div>
+          <div className='text-xs text-slate-400 mt-1'>Labor %</div>
+        </div>
+        <div className={`text-center p-4 rounded-lg ${over62 ? 'bg-red-50' : 'bg-green-50'}`}>
+          <div className={`text-2xl font-bold ${over62 ? 'text-red-700' : 'text-green-700'}`}>
+            {data?.prime_cost_pct?.toFixed(1) ?? '—'}%
+          </div>
+          <div className='text-xs text-slate-400 mt-1'>Prime cost {over62 ? '— above 62% target' : '— within target'}</div>
+        </div>
+      </div>
+      {data?.data_gap && <p className='text-xs text-amber-600 mb-4'>{data.data_gap}</p>}
+      {data?.sales_per_labor_hour_by_dow?.length > 0 && (
+        <div>
+          <h3 className='text-xs font-semibold text-slate-500 uppercase mb-2'>Sales per Labor Hour by Day</h3>
+          <table className='w-full text-xs'>
+            <thead>
+              <tr className='text-left text-slate-400 border-b'>
+                <th className='pb-1'>Day</th>
+                <th className='pb-1 text-right'>$/labor hr</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data.sales_per_labor_hour_by_dow as any[]).map((d: any) => (
+                <tr key={d.weekday} className='border-b border-slate-50'>
+                  <td className='py-1'>{d.weekday_name}</td>
+                  <td className='py-1 text-right'>{d.sales_per_labor_hour != null ? `$${d.sales_per_labor_hour.toFixed(2)}` : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
+// ── Channel Profitability ────────────────────────────────────────────────────
+function ChannelTab() {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['insights', 'channel'],
+    queryFn: () => api.get('/insights/channel-profitability?window_days=28').then(r => r.data),
+  })
+  if (isLoading) return <EmptyState msg='Loading…' />
+  if (!(data as any[]).length) return (
+    <SectionCard title='Channel Profitability (28d)'>
+      <EmptyState msg='No channel-tagged sales in the last 28 days. Set a channel in Sales Entry.' />
+    </SectionCard>
+  )
+  return (
+    <SectionCard title='Channel Profitability (28d)'>
+      <div className='space-y-3'>
+        {(data as any[]).map((r: any) => (
+          <div key={r.channel} className={`border rounded-lg p-3 ${r.net_contribution < 0 ? 'border-red-200 bg-red-50' : 'border-slate-100'}`}>
+            <div className='flex items-center justify-between text-sm font-medium'>
+              <span className='capitalize'>{r.channel}</span>
+              <span className={r.net_contribution < 0 ? 'text-red-700' : 'text-green-700'}>
+                Net ${r.net_contribution?.toFixed(2)}
+              </span>
+            </div>
+            <div className='text-xs text-slate-400 mt-1 grid grid-cols-3 gap-2'>
+              <span>Revenue: ${r.revenue?.toFixed(2)}</span>
+              <span>Food cost: ${r.food_cost?.toFixed(2)}</span>
+              <span>Commission: ${r.commission?.toFixed(2)}</span>
+            </div>
+            <div className='text-xs text-slate-500 mt-0.5'>Per-order net: ${r.per_order_net?.toFixed(2)}</div>
+            <ActionBadge text={r.action} />
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  )
+}
+
+// ── Waste Decomposition ──────────────────────────────────────────────────────
+function WasteTab() {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['insights', 'waste'],
+    queryFn: () => api.get('/insights/waste-decomposition?window_days=28').then(r => r.data),
+  })
+  if (isLoading) return <EmptyState msg='Loading…' />
+  if (!(data as any[]).length) return (
+    <SectionCard title='Waste Decomposition (28d)'>
+      <EmptyState msg='No waste logs in the last 28 days.' />
+    </SectionCard>
+  )
+  const maxDollars = Math.max(...(data as any[]).map((r: any) => r.waste_dollars))
+  return (
+    <SectionCard title='Waste Decomposition (28d)'>
+      <div className='space-y-3'>
+        {(data as any[]).map((r: any) => (
+          <div key={r.reason}>
+            <div className='flex justify-between text-sm'>
+              <span className='font-medium capitalize'>{r.reason}</span>
+              <span className='text-red-600 font-semibold'>-${r.waste_dollars?.toFixed(2)}</span>
+            </div>
+            <div className='h-2 bg-slate-100 rounded mt-1'>
+              <div className='h-2 bg-red-400 rounded' style={{ width: `${maxDollars > 0 ? (r.waste_dollars / maxDollars) * 100 : 0}%` }} />
+            </div>
+            <div className='text-xs text-slate-400 mt-0.5'>{r.waste_qty?.toFixed(3)} units wasted</div>
+            <ActionBadge text={r.recommended_action} />
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  )
+}
+
+// ── Adjustments ──────────────────────────────────────────────────────────────
+function AdjustmentsTab() {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['insights', 'adjustments'],
+    queryFn: () => api.get('/insights/adjustments?window_days=28').then(r => r.data),
+  })
+  if (isLoading) return <EmptyState msg='Loading…' />
+  if (!(data as any[]).length) return (
+    <SectionCard title='Adjustments Report (28d)'>
+      <EmptyState msg='No adjustments logged in the last 28 days.' />
+    </SectionCard>
+  )
+  return (
+    <SectionCard title='Adjustments Report (28d)'>
+      <div className='space-y-3'>
+        {(data as any[]).map((r: any) => (
+          <div key={r.adjustment_type} className={`border rounded-lg p-3 ${r.flag_high ? 'border-red-200 bg-red-50' : 'border-slate-100'}`}>
+            <div className='flex items-center justify-between text-sm font-medium'>
+              <span className='capitalize'>{r.adjustment_type}</span>
+              <span className={r.flag_high ? 'text-red-700' : 'text-slate-700'}>
+                ${r.total_amount?.toFixed(2)}
+              </span>
+            </div>
+            <div className='text-xs text-slate-400 mt-1'>
+              {r.count} occurrence{r.count !== 1 ? 's' : ''}
+              {r.pct_of_revenue != null && ` · ${r.pct_of_revenue.toFixed(1)}% of revenue`}
+            </div>
+            <ActionBadge text={r.recommended_action} />
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  )
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 export function InsightsPage() {
   const [tab, setTab] = useState<Tab>('variance')
@@ -476,6 +643,10 @@ export function InsightsPage() {
       {tab === 'patterns'     && <PatternsTab />}
       {tab === 'sensitivity'  && <SensitivityTab />}
       {tab === 'break-even'   && <BreakEvenTab />}
+      {tab === 'prime-cost'   && <PrimeCostTab />}
+      {tab === 'channel'      && <ChannelTab />}
+      {tab === 'waste'        && <WasteTab />}
+      {tab === 'adjustments'  && <AdjustmentsTab />}
     </div>
   )
 }

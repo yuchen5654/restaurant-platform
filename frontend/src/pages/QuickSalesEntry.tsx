@@ -5,6 +5,7 @@ import api from '../api/client'
 
 export function QuickSalesEntry() {
   const [date,    setDate]    = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [channel, setChannel] = useState('dine_in')
   const [counts,  setCounts]  = useState<Record<string, string>>({})
   const [success, setSuccess] = useState(false)
 
@@ -23,6 +24,7 @@ export function QuickSalesEntry() {
           gross_revenue:
             parseInt(qty) *
             Number((menuItems as any[])?.find((m: any) => m.id === menu_item_id)?.menu_price ?? 0),
+          channel,
         }))
       // Use noon UTC to avoid date-boundary issues from local timezone offsets
       return api.post('/sales/record-batch', {
@@ -56,11 +58,25 @@ export function QuickSalesEntry() {
           Enter how many of each item you sold. Inventory depletes automatically on submit.
         </p>
 
-        <div className='mb-5'>
-          <label className='block text-xs font-semibold text-slate-600 mb-1'>Business date</label>
-          <input type='date' value={date} onChange={e => setDate(e.target.value)}
-            className='border border-slate-300 rounded-lg px-3 py-2 text-sm w-full
-                       focus:outline-none focus:border-blue-400' />
+        <div className='mb-5 grid grid-cols-2 gap-3'>
+          <div>
+            <label className='block text-xs font-semibold text-slate-600 mb-1'>Business date</label>
+            <input type='date' value={date} onChange={e => setDate(e.target.value)}
+              className='border border-slate-300 rounded-lg px-3 py-2 text-sm w-full
+                         focus:outline-none focus:border-blue-400' />
+          </div>
+          <div>
+            <label className='block text-xs font-semibold text-slate-600 mb-1'>Channel</label>
+            <select value={channel} onChange={e => setChannel(e.target.value)}
+              className='border border-slate-300 rounded-lg px-3 py-2 text-sm w-full
+                         focus:outline-none focus:border-blue-400 bg-white'>
+              <option value='dine_in'>Dine-in</option>
+              <option value='takeout'>Takeout</option>
+              <option value='delivery'>Delivery</option>
+              <option value='catering'>Catering</option>
+              <option value='bar'>Bar</option>
+            </select>
+          </div>
         </div>
 
         {Object.entries(byCategory).map(([cat, items]) => (

@@ -23,6 +23,8 @@ def deplete_from_sale(
     quantity_sold: int,
     business_date: datetime,
     gross_revenue: float,
+    source: str = 'manual',
+    channel: str = 'dine_in',
 ) -> SalesByItem:
     """Decrement ingredient stock and record a SalesByItem row. Caller commits."""
     menu_item = db.get(MenuItem, _to_uuid(menu_item_id))
@@ -61,6 +63,8 @@ def deplete_from_sale(
         quantity_sold = quantity_sold,
         gross_revenue = Decimal(str(gross_revenue)),
         food_cost     = total_food_cost,
+        source        = source,
+        channel       = channel,
     )
     db.add(record)
     return record
@@ -77,6 +81,8 @@ def deplete_batch(
         deplete_from_sale(
             db, restaurant_id,
             s['menu_item_id'], s['quantity'], business_date, s['revenue'],
+            source=s.get('source', 'manual'),
+            channel=s.get('channel', 'dine_in'),
         )
         for s in sales
     ]

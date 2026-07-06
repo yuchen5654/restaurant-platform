@@ -42,6 +42,33 @@ def pull_all_toast_restaurants():
 
 
 @celery_app.task
+def fetch_nightly_weather():
+    """Nightly task: pull yesterday's weather for every restaurant with lat/lon set."""
+    from app.services.weather_service import fetch_weather_for_restaurant
+    from app.services.insights_service import get_or_create_settings
+
+    db        = SessionLocal()
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    try:
+        restaurants = (
+            db.query(Restaurant)
+            .filter(Restaurant.is_active.is_(True))
+            .all()
+        )
+        for r in restaurants:
+            try:
+                settings = get_or_create_settings(db, str(r.id))
+                if settings.lat and settings.lon:
+                    result = fetch_weather_for_restaurant(db, r, yesterday)
+                    if result:
+                        logger.info('Restaurant %s: weather fetched for %s', r.name, yesterday)
+            except Exception:
+                logger.exception('Weather fetch failed for restaurant %s', r.name)
+    finally:
+        db.close()
+
+
+@celery_app.task
 def run_nightly_alerts():
     from app.services.alert_service import run_alerts_for_restaurant
 

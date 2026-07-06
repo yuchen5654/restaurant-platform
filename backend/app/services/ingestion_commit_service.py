@@ -181,6 +181,44 @@ def _commit_sales(db: Session, restaurant_id: str, data) -> dict:
     return {'sales_committed': committed, 'sales_skipped': skipped}
 
 
+def _commit_labor(db: Session, restaurant_id: str, data) -> dict:
+    from app.models.labor import LaborEntry
+
+    rid   = _to_uuid(restaurant_id)
+    rows  = data if isinstance(data, list) else []
+    committed = 0
+    skipped   = []
+
+    for row in rows:
+        hours      = row.get('hours')
+        labor_cost = row.get('labor_cost')
+        if hours is None or labor_cost is None:
+            skipped.append(row.get('role', 'unknown'))
+            continue
+        date_str = row.get('business_date', '')
+        try:
+            business_date = datetime.fromisoformat(str(date_str))
+        except (ValueError, TypeError):
+            business_date = datetime.now(timezone.utc)
+
+        try:
+            db.add(LaborEntry(
+                restaurant_id = rid,
+                business_date = business_date,
+                hours         = Decimal(str(hours)),
+                labor_cost    = Decimal(str(labor_cost)),
+                role          = row.get('role'),
+                source        = 'csv',
+            ))
+            committed += 1
+        except Exception as exc:
+            logger.warning('Labor commit row failed: %s', exc)
+            skipped.append(str(row))
+
+    db.commit()
+    return {'labor_committed': committed, 'labor_skipped': skipped}
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -189,6 +227,7 @@ _COMMIT_FNS = {
     'invoice':         _commit_invoice,
     'inventory_count': _commit_count,
     'sales':           _commit_sales,
+    'labor':           _commit_labor,
 }
 
 

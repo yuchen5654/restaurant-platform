@@ -6,6 +6,7 @@ class SaleItem(BaseModel):
     menu_item_id: str
     quantity_sold: int
     gross_revenue: float
+    channel: str = 'dine_in'
 
 
 class SalesBatch(BaseModel):

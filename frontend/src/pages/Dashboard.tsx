@@ -29,6 +29,10 @@ export function Dashboard() {
     queryKey: ['insights', 'break-even', 'dashboard'],
     queryFn:  () => api.get('/insights/break-even').then(r => r.data),
   })
+  const { data: primeCost } = useQuery({
+    queryKey: ['insights', 'prime-cost', 'dashboard'],
+    queryFn:  () => api.get('/insights/prime-cost?window_days=28').then(r => r.data),
+  })
 
   const fcAlert = fc?.food_cost_pct != null && Number(fc.food_cost_pct) > 35
 
@@ -72,8 +76,10 @@ export function Dashboard() {
           alert={(alerts as any[])?.length > 0}
         />
         <KpiCard
-          label='Items Tracked'
-          value={items != null ? String((items as any[]).length) : '—'}
+          label='Prime Cost % (28d)'
+          value={primeCost?.prime_cost_pct != null ? `${Number(primeCost.prime_cost_pct).toFixed(1)}%` : '—'}
+          target='62%'
+          alert={primeCost?.flag_over_62 === true}
         />
         <KpiCard
           label='Variance (7d)'

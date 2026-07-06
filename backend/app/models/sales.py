@@ -21,6 +21,7 @@ class SalesSummary(Base):
     voids_total   = Column(Numeric(10, 2), default=0)
     labor_cost    = Column(Numeric(10, 2))
     source        = Column(String(30), default='manual')
+    channel       = Column(String(30), default='dine_in')
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -35,6 +36,8 @@ class SalesByItem(Base):
     gross_revenue = Column(Numeric(10, 2), default=0)
     food_cost     = Column(Numeric(10, 2), default=0)
     raw_pos_name  = Column(String(200))
+    source        = Column(String(30), default='manual')
+    channel       = Column(String(30), default='dine_in')
 
 
 class PosItemMapping(Base):

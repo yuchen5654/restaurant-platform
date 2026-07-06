@@ -43,6 +43,7 @@ class RecipeLine(Base):
     ingredient_id = Column(UUID(as_uuid=True), ForeignKey('ingredients.id'), nullable=False)
     quantity      = Column(Numeric(10, 4), nullable=False)
     unit          = Column(String(20), nullable=False)
+    channel       = Column(String(30), nullable=True)   # NULL = all channels
     notes         = Column(Text)
 
     menu_item  = relationship('MenuItem', back_populates='recipe_lines')

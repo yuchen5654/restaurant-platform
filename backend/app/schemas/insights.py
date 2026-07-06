@@ -8,6 +8,10 @@ class SettingsRead(BaseModel):
     menu_eng_popularity_factor: float
     par_min_cover_days:         int
     par_max_cover_days:         int
+    seat_count:                 Optional[int]
+    lat:                        Optional[float]
+    lon:                        Optional[float]
+    restaurant_type:            Optional[str]
 
     class Config:
         from_attributes = True
@@ -19,6 +23,10 @@ class SettingsPatch(BaseModel):
     menu_eng_popularity_factor: Optional[float] = None
     par_min_cover_days:         Optional[int]   = None
     par_max_cover_days:         Optional[int]   = None
+    seat_count:                 Optional[int]   = None
+    lat:                        Optional[float] = None
+    lon:                        Optional[float] = None
+    restaurant_type:            Optional[str]   = None
 
 
 class VarianceRow(BaseModel):
@@ -107,10 +115,18 @@ class DaypartRow(BaseModel):
     units:        int
 
 
+class WeatherRow(BaseModel):
+    business_date: str
+    precip_mm:     Optional[float]
+    tmax:          Optional[float]
+    tmin:          Optional[float]
+
+
 class SalesPatternsResponse(BaseModel):
     dow:          list[DowRow]
     daypart:      list[DaypartRow]
-    coverage_pct: float   # fraction of sales rows with timestamps
+    coverage_pct: float   # fraction of Toast-sourced rows (has real timestamps)
+    weather:      list[WeatherRow] = []
 
 
 class SensitivityRow(BaseModel):
@@ -125,3 +141,55 @@ class BreakEvenResponse(BaseModel):
     avg_daily_revenue:  Optional[float]
     daily_surplus:      Optional[float]
     data_gap:           Optional[str]
+
+
+# ---------------------------------------------------------------------------
+# Step 12 schemas
+# ---------------------------------------------------------------------------
+
+class PrimeCostDowRow(BaseModel):
+    weekday:              int
+    weekday_name:         str
+    sales_per_labor_hour: Optional[float]
+
+
+class PrimeCostResponse(BaseModel):
+    food_cost_pct:            Optional[float]
+    labor_pct:                Optional[float]
+    prime_cost_pct:           Optional[float]
+    flag_over_62:             bool
+    sales_per_labor_hour_by_dow: list[PrimeCostDowRow]
+    data_gap:                 Optional[str]
+
+
+class ChannelProfitabilityRow(BaseModel):
+    channel:          str
+    revenue:          float
+    food_cost:        float
+    commission:       float
+    net_contribution: float
+    per_order_net:    float
+    action:           Optional[str]
+
+
+class CoversResponse(BaseModel):
+    avg_check:               Optional[float]
+    revenue_per_seat_per_day: Optional[float]
+    seat_count:              Optional[int]
+    data_gap:                Optional[str]
+
+
+class WasteDecompRow(BaseModel):
+    reason:              str
+    waste_dollars:       float
+    waste_qty:           float
+    recommended_action:  Optional[str]
+
+
+class AdjustmentReportRow(BaseModel):
+    adjustment_type:     str
+    total_amount:        float
+    count:               int
+    pct_of_revenue:      Optional[float]
+    flag_high:           bool
+    recommended_action:  Optional[str]

@@ -18,7 +18,7 @@ def record_batch(
     rid: str = Depends(get_current_restaurant_id),
 ):
     sales = [
-        {'menu_item_id': i.menu_item_id, 'quantity': i.quantity_sold, 'revenue': i.gross_revenue}
+        {'menu_item_id': i.menu_item_id, 'quantity': i.quantity_sold, 'revenue': i.gross_revenue, 'channel': i.channel}
         for i in batch.items
     ]
     records = deplete_batch(db, rid, sales, batch.business_date)

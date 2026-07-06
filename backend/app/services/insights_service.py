@@ -13,13 +13,15 @@ from typing import Optional
 from sqlalchemy import func, select, and_
 from sqlalchemy.orm import Session
 
+from app.models.adjustments import SaleAdjustment
 from app.models.insights import RestaurantSettings
 from app.models.inventory import (
     Ingredient, InventoryCount, VendorInvoice, InvoiceLineItem,
     WasteLog, DepletionEvent,
 )
 from app.models.recipe import MenuItem, RecipeLine
-from app.models.sales import SalesByItem
+from app.models.sales import SalesByItem, SalesSummary
+from app.models.weather import WeatherDay
 from app.services.food_cost_service import get_food_cost_summary
 
 
@@ -573,10 +575,9 @@ def get_sales_patterns(db: Session, restaurant_id: str, window_days: int = 28) -
         for i in range(7)
     ]
 
-    # Daypart: only rows with a time component (hour != 0 or minute != 0 can't distinguish
-    # noon-UTC manual entries from real timestamps; treat all as having timestamps — coverage_pct
-    # expresses what % of rows had non-midnight-UTC timestamps)
-    timestamped = [r for r in all_rows if r.business_date.hour != 12 or r.business_date.minute != 0]
+    # Daypart: Toast-sourced rows have real timestamps; manual and CSV are date-only.
+    # CSV-imported sales use source='csv' and are date-only like manual — must not count as timestamped.
+    timestamped  = [r for r in all_rows if r.source == 'toast']
     coverage_pct = round(len(timestamped) / len(all_rows), 4) if all_rows else 0.0
 
     dp_rev   = {label: 0.0 for label, *_ in _DAYPART_LABELS}
@@ -594,7 +595,26 @@ def get_sales_patterns(db: Session, restaurant_id: str, window_days: int = 28) -
         for label, *_ in _DAYPART_LABELS
     ]
 
-    return {'dow': dow_out, 'daypart': daypart_out, 'coverage_pct': coverage_pct}
+    # Weather join — outer join against weather_days over the same window
+    weather_rows = db.execute(
+        select(WeatherDay)
+        .where(
+            WeatherDay.restaurant_id == rid,
+            WeatherDay.business_date >= since.date(),
+        )
+        .order_by(WeatherDay.business_date)
+    ).scalars().all()
+    weather_out = [
+        {
+            'business_date': str(w.business_date),
+            'precip_mm':     float(w.precip_mm) if w.precip_mm is not None else None,
+            'tmax':          float(w.tmax)       if w.tmax      is not None else None,
+            'tmin':          float(w.tmin)       if w.tmin      is not None else None,
+        }
+        for w in weather_rows
+    ]
+
+    return {'dow': dow_out, 'daypart': daypart_out, 'coverage_pct': coverage_pct, 'weather': weather_out}
 
 
 # ---------------------------------------------------------------------------
@@ -707,3 +727,88 @@ def get_break_even(db: Session, restaurant_id: str) -> dict:
         'daily_surplus':     round(daily_surplus, 2),
         'data_gap':          None,
     }
+
+
+# ---------------------------------------------------------------------------
+# 12.1  Covers / Revenue-per-Seat
+# ---------------------------------------------------------------------------
+
+def get_covers_insight(db: Session, restaurant_id: str, window_days: int = 28) -> dict:
+    rid      = _to_uuid(restaurant_id)
+    settings = get_or_create_settings(db, restaurant_id)
+    since    = _now() - timedelta(days=window_days)
+
+    total_rev = float(db.execute(
+        select(func.coalesce(func.sum(SalesByItem.gross_revenue), 0))
+        .where(SalesByItem.restaurant_id == rid, SalesByItem.business_date >= since)
+    ).scalar() or 0)
+
+    total_covers = int(db.execute(
+        select(func.coalesce(func.sum(SalesSummary.covers), 0))
+        .where(SalesSummary.restaurant_id == rid, SalesSummary.business_date >= since)
+    ).scalar() or 0)
+
+    seat_count = settings.seat_count
+    avg_check  = round(total_rev / total_covers, 2) if total_covers > 0 else None
+    rev_per_seat_per_day = (
+        round(total_rev / (seat_count * window_days), 2)
+        if seat_count and seat_count > 0 else None
+    )
+
+    return {
+        'avg_check':               avg_check,
+        'revenue_per_seat_per_day': rev_per_seat_per_day,
+        'seat_count':              seat_count,
+        'data_gap': (
+            'set seat_count in Settings to enable revenue-per-seat-per-day'
+            if not seat_count else None
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# 12.2  Adjustment Report
+# ---------------------------------------------------------------------------
+
+def get_adjustment_report(db: Session, restaurant_id: str, window_days: int = 28) -> list[dict]:
+    rid   = _to_uuid(restaurant_id)
+    since = _now() - timedelta(days=window_days)
+
+    agg_rows = db.execute(
+        select(
+            SaleAdjustment.adjustment_type,
+            func.coalesce(func.sum(SaleAdjustment.amount), 0).label('total'),
+            func.count(SaleAdjustment.id).label('cnt'),
+        )
+        .where(SaleAdjustment.restaurant_id == rid, SaleAdjustment.business_date >= since)
+        .group_by(SaleAdjustment.adjustment_type)
+    ).all()
+
+    total_rev = float(db.execute(
+        select(func.coalesce(func.sum(SalesByItem.gross_revenue), 0))
+        .where(SalesByItem.restaurant_id == rid, SalesByItem.business_date >= since)
+    ).scalar() or 0)
+
+    rows = []
+    for ar in agg_rows:
+        total_adj  = float(ar.total or 0)
+        cnt        = int(ar.cnt or 0)
+        pct_rev    = round(total_adj / total_rev * 100, 2) if total_rev > 0 else None
+        flag_high  = pct_rev is not None and pct_rev > 3.0
+        action     = None
+        if flag_high:
+            action = (
+                f'{ar.adjustment_type} total ${total_adj:.2f} ({pct_rev:.1f}% of revenue, '
+                f'{cnt} occurrences over {window_days}d) — investigate by employee and daypart'
+            )
+        rows.append({
+            'adjustment_type':    ar.adjustment_type,
+            'total_amount':       round(total_adj, 2),
+            'count':              cnt,
+            'pct_of_revenue':     pct_rev,
+            'flag_high':          flag_high,
+            'recommended_action': action,
+        })
+
+    rows.sort(key=lambda r: r['total_amount'], reverse=True)
+    return rows
