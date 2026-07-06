@@ -5,6 +5,7 @@ import uuid as _uuid
 
 from sqlalchemy.orm import Session
 
+from app.models.inventory import DepletionEvent
 from app.models.recipe import MenuItem
 from app.models.sales import SalesByItem
 
@@ -45,6 +46,13 @@ def deplete_from_sale(
         ingredient.current_stock = max(Decimal('0'), prev_stock - qty_consumed)
         if ingredient.current_cost_per_unit:
             total_food_cost += qty_consumed * ingredient.current_cost_per_unit
+        db.add(DepletionEvent(
+            restaurant_id = recipe_line.ingredient.restaurant_id,
+            ingredient_id = ingredient.id,
+            menu_item_id  = _to_uuid(menu_item_id),
+            quantity      = qty_consumed,
+            depleted_at   = business_date,
+        ))
 
     record = SalesByItem(
         restaurant_id = restaurant_id,

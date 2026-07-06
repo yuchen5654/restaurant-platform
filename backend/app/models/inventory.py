@@ -68,6 +68,17 @@ class WasteLog(Base):
     notes         = Column(Text)
 
 
+class DepletionEvent(Base):
+    __tablename__ = 'depletion_events'
+
+    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    restaurant_id = Column(UUID(as_uuid=True), ForeignKey('restaurants.id'), nullable=False)
+    ingredient_id = Column(UUID(as_uuid=True), ForeignKey('ingredients.id'), nullable=False)
+    menu_item_id  = Column(UUID(as_uuid=True), ForeignKey('menu_items.id'), nullable=False)
+    quantity      = Column(Numeric(10, 4), nullable=False)
+    depleted_at   = Column(DateTime(timezone=True), nullable=False)
+
+
 class VendorInvoice(Base):
     __tablename__ = 'vendor_invoices'
 

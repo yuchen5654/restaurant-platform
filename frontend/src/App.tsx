@@ -10,6 +10,7 @@ import { InventoryCount } from './pages/InventoryCount'
 import { RecipeBuilder } from './pages/RecipeBuilder'
 import { WasteLog } from './pages/WasteLog'
 import { AskPage } from './pages/AskPage'
+import { InsightsPage } from './pages/InsightsPage'
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   return localStorage.getItem('access_token') ? children : <Navigate to='/login' replace />
@@ -31,6 +32,7 @@ export default function App() {
           <Route path='recipes'              element={<RecipeBuilder />} />
           <Route path='waste'                element={<WasteLog />} />
           <Route path='ask'                  element={<AskPage />} />
+          <Route path='insights'             element={<InsightsPage />} />
           <Route path='*'                    element={<Navigate to='/dashboard' replace />} />
         </Route>
       </Routes>

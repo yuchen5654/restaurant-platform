@@ -21,8 +21,20 @@ export function Dashboard() {
     queryFn:  () => api.get('/alerts', { params: { unread_only: true } }).then(r => r.data),
     refetchInterval: 60_000,
   })
+  const { data: variance } = useQuery({
+    queryKey: ['insights', 'variance', 'dashboard'],
+    queryFn:  () => api.get('/insights/variance?window_days=7').then(r => r.data),
+  })
+  const { data: breakEven } = useQuery({
+    queryKey: ['insights', 'break-even', 'dashboard'],
+    queryFn:  () => api.get('/insights/break-even').then(r => r.data),
+  })
 
   const fcAlert = fc?.food_cost_pct != null && Number(fc.food_cost_pct) > 35
+
+  const varianceFlagged = (variance as any[])?.filter((r: any) => r.recommended_action) ?? []
+  const totalVarianceValue = varianceFlagged.reduce((s: number, r: any) => s + Math.abs(r.variance_value ?? 0), 0)
+  const varianceAlert = varianceFlagged.length > 0
 
   return (
     <div className='p-6 bg-slate-50 min-h-screen'>
@@ -62,6 +74,22 @@ export function Dashboard() {
         <KpiCard
           label='Items Tracked'
           value={items != null ? String((items as any[]).length) : '—'}
+        />
+        <KpiCard
+          label='Variance (7d)'
+          value={variance != null ? (varianceFlagged.length > 0 ? `$${totalVarianceValue.toFixed(0)} flagged` : 'OK') : '—'}
+          alert={varianceAlert}
+        />
+        <KpiCard
+          label='Daily vs. Break-Even'
+          value={
+            breakEven?.data_gap
+              ? 'Set fixed costs'
+              : breakEven?.daily_surplus != null
+                ? `${breakEven.daily_surplus >= 0 ? '+' : ''}$${Number(breakEven.daily_surplus).toFixed(0)}/day`
+                : '—'
+          }
+          alert={breakEven != null && !breakEven.data_gap && (breakEven.daily_surplus ?? 0) < 0}
         />
       </div>
 

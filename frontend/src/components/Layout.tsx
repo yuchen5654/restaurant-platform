@@ -9,6 +9,7 @@ const NAV = [
   { to: '/recipes',         label: 'Recipe Builder' },
   { to: '/waste',           label: 'Waste Log' },
   { to: '/ask',             label: 'Ask' },
+  { to: '/insights',        label: 'Insights' },
 ]
 
 export function Layout() {
