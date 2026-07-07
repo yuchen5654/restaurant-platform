@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ router = APIRouter(prefix='/adjustments', tags=['adjustments'])
 
 class AdjustmentCreate(BaseModel):
     business_date:   datetime
-    adjustment_type: str   # comp | void | discount
+    adjustment_type: Literal['comp', 'void', 'discount']
     amount:          float
     employee_str:    Optional[str] = None
     daypart:         Optional[str] = None

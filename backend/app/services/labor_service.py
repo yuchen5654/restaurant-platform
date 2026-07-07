@@ -1,3 +1,4 @@
+import zoneinfo as _zoneinfo
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
@@ -5,7 +6,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.labor import LaborEntry
-from app.models.sales import SalesByItem, SalesSummary
+from app.models.restaurant import Restaurant
+from app.models.sales import SalesByItem
 import uuid as _uuid
 
 _DOW_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -13,6 +15,21 @@ _DOW_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 def _to_uuid(val) -> _uuid.UUID:
     return val if isinstance(val, _uuid.UUID) else _uuid.UUID(str(val))
+
+
+def _get_tz(tz_str: str | None) -> _zoneinfo.ZoneInfo:
+    if not tz_str:
+        return _zoneinfo.ZoneInfo('UTC')
+    try:
+        return _zoneinfo.ZoneInfo(tz_str)
+    except Exception:
+        return _zoneinfo.ZoneInfo('UTC')
+
+
+def _localize(dt: datetime, tz: _zoneinfo.ZoneInfo) -> datetime:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(tz)
 
 
 def get_prime_cost(db: Session, restaurant_id: str, window_days: int = 28) -> dict:
@@ -50,9 +67,15 @@ def get_prime_cost(db: Session, restaurant_id: str, window_days: int = 28) -> di
     labor_pct  = round(total_labor / total_rev * 100, 2)
     prime_pct  = round(food_pct + labor_pct, 2)
 
-    # Sales per labor hour by day-of-week
-    summaries = db.execute(
-        select(SalesSummary).where(SalesSummary.restaurant_id == rid, SalesSummary.business_date >= since)
+    # Sales per labor hour by day-of-week.
+    # Use SalesByItem (always populated) instead of SalesSummary (requires batch upsert).
+    # Convert to restaurant-local timezone so a 23:30 UTC sale on Friday is bucketed
+    # to Friday, not Saturday, for an EST restaurant.
+    restaurant   = db.get(Restaurant, rid)
+    tz           = _get_tz(restaurant.timezone if restaurant else None)
+
+    sales_items = db.execute(
+        select(SalesByItem).where(SalesByItem.restaurant_id == rid, SalesByItem.business_date >= since)
     ).scalars().all()
 
     labor_entries = db.execute(
@@ -61,10 +84,12 @@ def get_prime_cost(db: Session, restaurant_id: str, window_days: int = 28) -> di
 
     dow_rev   = [0.0] * 7
     dow_hours = [0.0] * 7
-    for s in summaries:
-        dow_rev[s.business_date.weekday()] += float(s.gross_revenue or 0)
+    for s in sales_items:
+        wd = _localize(s.business_date, tz).weekday()
+        dow_rev[wd] += float(s.gross_revenue or 0)
     for le in labor_entries:
-        dow_hours[le.business_date.weekday()] += float(le.hours or 0)
+        wd = _localize(le.business_date, tz).weekday()
+        dow_hours[wd] += float(le.hours or 0)
 
     dow_out = [
         {

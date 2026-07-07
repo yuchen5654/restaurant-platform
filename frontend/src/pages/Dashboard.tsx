@@ -43,6 +43,7 @@ export function Dashboard() {
   const { data: actionsData } = useQuery({
     queryKey: ['insights', 'actions'],
     queryFn:  () => api.get('/insights/actions').then(r => r.data),
+    staleTime:       15 * 60 * 1000,   // actions are derived from daily data; 15 min is fine
     refetchInterval: 300_000,
   })
 

@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import api from '../api/client'
 
 export function QuickSalesEntry() {
   const [date,    setDate]    = useState(format(new Date(), 'yyyy-MM-dd'))
   const [channel, setChannel] = useState('dine_in')
+  const [covers,  setCovers]  = useState('')
   const [counts,  setCounts]  = useState<Record<string, string>>({})
   const [success, setSuccess] = useState(false)
+  const qc = useQueryClient()
 
   const { data: menuItems, isLoading } = useQuery({
     queryKey: ['menu-items'],
@@ -26,16 +28,25 @@ export function QuickSalesEntry() {
             Number((menuItems as any[])?.find((m: any) => m.id === menu_item_id)?.menu_price ?? 0),
           channel,
         }))
+      const coversInt = covers ? parseInt(covers) : undefined
       // Use noon UTC to avoid date-boundary issues from local timezone offsets
       return api.post('/sales/record-batch', {
         business_date: new Date(date + 'T12:00:00Z').toISOString(),
         items,
+        ...(coversInt != null && coversInt > 0 ? { covers: coversInt } : {}),
       })
     },
     onSuccess: () => {
       setCounts({})
+      setCovers('')
       setSuccess(true)
       setTimeout(() => setSuccess(false), 4000)
+      // Invalidate all queries that depend on sales data so the Dashboard and
+      // Insights pages reflect the new batch without a hard refresh.
+      qc.invalidateQueries({ queryKey: ['food-cost'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
+      qc.invalidateQueries({ queryKey: ['insights'] })
+      qc.invalidateQueries({ queryKey: ['alerts'] })
     },
   })
 
@@ -76,6 +87,18 @@ export function QuickSalesEntry() {
               <option value='catering'>Catering</option>
               <option value='bar'>Bar</option>
             </select>
+          </div>
+          <div className='col-span-2'>
+            <label className='block text-xs font-semibold text-slate-600 mb-1'>
+              Covers (guests served) <span className='font-normal text-slate-400'>— optional</span>
+            </label>
+            <input
+              type='number' min='0' placeholder='e.g. 40'
+              value={covers}
+              onChange={e => setCovers(e.target.value)}
+              className='border border-slate-300 rounded-lg px-3 py-2 text-sm w-full
+                         focus:outline-none focus:border-blue-400'
+            />
           </div>
         </div>
 

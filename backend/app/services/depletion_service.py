@@ -1,13 +1,14 @@
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import logging
 import uuid as _uuid
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.inventory import DepletionEvent
 from app.models.recipe import MenuItem
-from app.models.sales import SalesByItem
+from app.models.sales import SalesByItem, SalesSummary
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,10 @@ def deplete_from_sale(
 
     total_food_cost = Decimal('0')
     for recipe_line in menu_item.recipe_lines:
+        # Only deplete lines applicable to this sale's channel.
+        # channel=None on the recipe line means "all channels".
+        if recipe_line.channel is not None and recipe_line.channel != channel:
+            continue
         ingredient = recipe_line.ingredient
         if not ingredient:
             logger.warning(f'RecipeLine {recipe_line.id} has no ingredient — skipping')
@@ -70,13 +75,51 @@ def deplete_from_sale(
     return record
 
 
+def _upsert_sales_summary(
+    db: Session,
+    restaurant_id: str,
+    business_date: datetime,
+    gross_revenue: Decimal,
+    covers: int,
+) -> None:
+    """Add covers and revenue to the SalesSummary row for this date, creating if absent."""
+    rid = _to_uuid(restaurant_id)
+    # Find any existing summary row for this calendar date
+    bd = business_date if business_date.tzinfo else business_date.replace(tzinfo=timezone.utc)
+    day_start = datetime(bd.year, bd.month, bd.day, tzinfo=timezone.utc)
+    day_end   = day_start + timedelta(days=1)
+
+    existing = db.execute(
+        select(SalesSummary)
+        .where(
+            SalesSummary.restaurant_id == rid,
+            SalesSummary.business_date >= day_start,
+            SalesSummary.business_date <  day_end,
+        )
+        .limit(1)
+    ).scalar_one_or_none()
+
+    if existing:
+        existing.gross_revenue = (existing.gross_revenue or Decimal('0')) + gross_revenue
+        existing.covers        = (existing.covers or 0) + covers
+    else:
+        db.add(SalesSummary(
+            restaurant_id = rid,
+            business_date = business_date,
+            gross_revenue = gross_revenue,
+            covers        = covers,
+            source        = 'manual',
+        ))
+
+
 def deplete_batch(
     db: Session,
     restaurant_id: str,
     sales: list[dict],
     business_date: datetime,
+    covers: int = 0,
 ) -> list[SalesByItem]:
-    """Process multiple item sales in one transaction (end-of-day POS import)."""
+    """Process multiple item sales in one transaction (end-of-day entry)."""
     records = [
         deplete_from_sale(
             db, restaurant_id,
@@ -86,5 +129,9 @@ def deplete_batch(
         )
         for s in sales
     ]
+
+    total_revenue = sum(r.gross_revenue for r in records)
+    _upsert_sales_summary(db, restaurant_id, business_date, total_revenue, covers)
+
     db.commit()
     return records

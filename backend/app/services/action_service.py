@@ -5,6 +5,7 @@ price experiments, adjustments, menu engineering Dogs).
 """
 from __future__ import annotations
 
+import logging
 import uuid as _uuid
 from datetime import datetime, timezone
 
@@ -12,6 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.alerts import Alert
+
+logger = logging.getLogger(__name__)
 
 
 def _to_uuid(val) -> _uuid.UUID:
@@ -26,7 +29,7 @@ def get_daily_actions(db: Session, restaurant_id: str) -> list[dict]:
     from app.services.insights_service    import get_variance_report, get_par_recommendations, get_menu_engineering
     from app.services.channel_service     import get_channel_profitability
     from app.services.labor_service       import get_prime_cost
-    from app.services.price_experiment_service import get_price_experiments
+    from app.services.price_experiment_service import get_price_experiments, VERDICT_VOLUME_DROP
 
     rid     = _to_uuid(restaurant_id)
     actions: list[dict] = []
@@ -77,7 +80,7 @@ def get_daily_actions(db: Session, restaurant_id: str) -> list[dict]:
                 'link_route':     '/insights?tab=variance',
             })
     except Exception:
-        pass
+        logger.exception('daily-actions: variance check failed')
 
     # 3. Par stockout risks (< 2 days cover)
     try:
@@ -98,7 +101,7 @@ def get_daily_actions(db: Session, restaurant_id: str) -> list[dict]:
                 'link_route':     '/insights?tab=pars',
             })
     except Exception:
-        pass
+        logger.exception('daily-actions: pars check failed')
 
     # 4. Losing channels
     try:
@@ -113,12 +116,12 @@ def get_daily_actions(db: Session, restaurant_id: str) -> list[dict]:
                 'link_route':     '/insights?tab=channel',
             })
     except Exception:
-        pass
+        logger.exception('daily-actions: channel check failed')
 
     # 5. Price experiment — volume dropped
     try:
         experiments = get_price_experiments(db, restaurant_id)
-        risky = [e for e in experiments if e['verdict'] == 'volume dropped significantly — consider reverting']
+        risky = [e for e in experiments if e['verdict'] == VERDICT_VOLUME_DROP]
         if risky:
             names = ', '.join(e['item_name'] for e in risky[:2])
             actions.append({
@@ -128,7 +131,7 @@ def get_daily_actions(db: Session, restaurant_id: str) -> list[dict]:
                 'link_route':     '/insights?tab=price-experiments',
             })
     except Exception:
-        pass
+        logger.exception('daily-actions: price-experiments check failed')
 
     # 6. Prime cost over 62%
     try:
@@ -144,7 +147,7 @@ def get_daily_actions(db: Session, restaurant_id: str) -> list[dict]:
                 'link_route':     '/insights?tab=prime-cost',
             })
     except Exception:
-        pass
+        logger.exception('daily-actions: prime-cost check failed')
 
     # 7. Menu-engineering Dogs (60d window)
     # TODO: When Step 8 forecasting is live, surface prep/order suggestions here too.
@@ -161,7 +164,7 @@ def get_daily_actions(db: Session, restaurant_id: str) -> list[dict]:
                 'link_route':     '/insights?tab=menu-eng',
             })
     except Exception:
-        pass
+        logger.exception('daily-actions: menu-eng check failed')
 
     # Dedup by source_insight (keep first occurrence, which is highest priority)
     seen: set[str] = set()

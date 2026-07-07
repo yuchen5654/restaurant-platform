@@ -15,6 +15,14 @@ from app.models.price_events import MenuPriceEvent
 from app.models.recipe import MenuItem
 from app.models.sales import SalesByItem
 
+# Verdict string constants — import these in any service that pattern-matches verdicts
+# so a wording change here doesn't silently break downstream logic.
+VERDICT_MAINTAINED    = 'price change maintained or improved margin'
+VERDICT_VOLUME_DROP   = 'volume dropped significantly — consider reverting'
+VERDICT_DECLINED      = 'margin declined — monitor'
+VERDICT_INSUFFICIENT  = 'insufficient data'
+VERDICT_ITEM_DELETED  = 'item no longer active'
+
 
 def _to_uuid(val) -> _uuid.UUID:
     return val if isinstance(val, _uuid.UUID) else _uuid.UUID(str(val))
@@ -65,7 +73,31 @@ def get_price_experiments(db: Session, restaurant_id: str) -> list[dict]:
     rows = []
     for event in events:
         item = db.get(MenuItem, event.menu_item_id)
-        if not item or item.restaurant_id != rid:
+        # Skip true cross-tenant rows (item belongs to another restaurant).
+        # Emit a placeholder when the item was deleted (hard- or soft-deleted) after the
+        # price event was recorded.  Hard deletes are prevented by the FK, so in practice
+        # this triggers on is_active=False (soft delete).
+        if item is not None and item.restaurant_id != rid:
+            continue
+        if item is None or not item.is_active:
+            rows.append({
+                'event_id':              str(event.id),
+                'menu_item_id':          str(event.menu_item_id),
+                'item_name':             '[deleted item]',
+                'old_price':             float(event.old_price),
+                'new_price':             float(event.new_price),
+                'price_change_pct':      None,
+                'changed_at':            event.changed_at.isoformat(),
+                'before_days':           None,
+                'after_days':            None,
+                'before_units_per_day':  None,
+                'after_units_per_day':   None,
+                'units_delta_pct':       None,
+                'before_margin_per_day': None,
+                'after_margin_per_day':  None,
+                'margin_delta_pct':      None,
+                'verdict':               VERDICT_ITEM_DELETED,
+            })
             continue
 
         changed_at = _ensure_tz(event.changed_at)
@@ -117,8 +149,9 @@ def get_price_experiments(db: Session, restaurant_id: str) -> list[dict]:
                 .where(
                     SalesByItem.restaurant_id == rid,
                     SalesByItem.menu_item_id  == event.menu_item_id,
-                    SalesByItem.business_date >= start,
-                    SalesByItem.business_date <  end,
+                    # Compare date columns directly to avoid UTC-vs-naive timezone mismatch
+                    SalesByItem.business_date >= start.date(),
+                    SalesByItem.business_date <  end.date(),
                 )
             ).one()
             units  = int(row.units)
@@ -146,13 +179,13 @@ def get_price_experiments(db: Session, restaurant_id: str) -> list[dict]:
         )
 
         if units_delta_pct is None or margin_delta_pct is None:
-            verdict = 'insufficient data'
+            verdict = VERDICT_INSUFFICIENT
         elif margin_delta_pct >= 0:
-            verdict = 'price change maintained or improved margin'
-        elif units_delta_pct is not None and units_delta_pct < -15:
-            verdict = 'volume dropped significantly — consider reverting'
+            verdict = VERDICT_MAINTAINED
+        elif units_delta_pct < -15:
+            verdict = VERDICT_VOLUME_DROP
         else:
-            verdict = 'margin declined — monitor'
+            verdict = VERDICT_DECLINED
 
         rows.append({
             'event_id':              str(event.id),

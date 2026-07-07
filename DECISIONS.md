@@ -230,6 +230,8 @@ The `SaleAdjustment` table and manual entry path are live. Toast's `appliedDisco
 
 `channel_fees.channel` and `sales_by_item.channel` are plain `String(30)` — no enum constraint. Fee matching in `get_channel_profitability` is an exact string lookup (`fees.get(channel, 0.0)`). The QuickSalesEntry dropdown (dine_in, takeout, delivery, catering, bar) is the canonical set operators should also use when creating channel fees. A fee created for `'delivery'` matches sales tagged `channel='delivery'` exactly. Future UI for fee management should present the same canonical list or a free-text field with autocomplete from existing fee rows.
 
+**Superseded 2026-07-07 (audit F9):** API request bodies are now validated at the Pydantic layer via `Literal['dine_in', 'takeout', 'delivery', 'catering', 'bar']` on `SaleItem.channel` and `ChannelFeeCreate.channel`, and `Literal['comp', 'void', 'discount']` on `AdjustmentCreate.adjustment_type`. Unknown values are rejected with 422 before reaching the service. The DB columns remain `String(30)` — no migration needed — because the constraint lives at the API boundary where it belongs.
+
 ## 2026-07-06 — Consolidated DECISIONS.md into root (this file)
 
 docs/DECISIONS.md was created during Step 12 in the mistaken belief that no root DECISIONS.md existed. Root DECISIONS.md is canonical per the scaffold layout. docs/DECISIONS.md has been deleted; its Step 12 entries and improved Step 11 write-ups are merged here.
@@ -258,6 +260,8 @@ Beat schedule order: Toast pull 3:00am → alerts 3:30am → weather 4:00am → 
 
 `get_daily_actions` surfaces a price-experiment action only when `verdict == 'volume dropped significantly — consider reverting'`. This is an exact string comparison. The verdict strings are defined in `price_experiment_service.py` and must not be changed without updating the action service. If the verdict set grows, centralise them into a module-level constant dict.
 
+**Superseded 2026-07-07 (audit F10):** Verdict strings are now module-level constants in `price_experiment_service.py` (`VERDICT_MAINTAINED`, `VERDICT_VOLUME_DROP`, `VERDICT_DECLINED`, `VERDICT_INSUFFICIENT`, `VERDICT_ITEM_DELETED`). `action_service` imports and uses `VERDICT_VOLUME_DROP` directly — no bare string literal. Renaming a verdict is now a single-file change in `price_experiment_service.py`.
+
 ## 2026-07-07 — Dogs action uses "currently Dogs in 60d window", not "persistently Dogs" (Step 13)
 
 The step file describes surfacing menu items that have been in the Dog quadrant for 60+ days — implying quadrant-history tracking. The implementation uses a simpler 60d `get_menu_engineering` window and flags all current Dogs. These semantics are different: a newly appeared Dog in the last 60d window will fire, while a persistent Dog that briefly left and returned within 60d will also fire. The stricter "persistently in Dog quadrant" version would require storing daily quadrant snapshots or running two windows (current + prior) and intersecting them. Deferred: the current version provides the signal operators need (low-volume, low-margin items) without the schema overhead of quadrant history.
@@ -265,6 +269,22 @@ The step file describes surfacing menu items that have been in the Dog quadrant 
 ## 2026-07-07 — log_price_event uses db.flush(), not db.commit() (Step 13 follow-up)
 
 `log_price_event` was originally committing its own transaction, which created an orphan `MenuPriceEvent` row if the menu-item PATCH subsequently failed (e.g., due to a validation error or DB constraint). Fixed to `db.flush()` only — the PATCH handler owns the transaction and commits once, after both the price update and the event are in the session. This makes the event and the price change atomic: if either fails the entire transaction rolls back.
+
+## 2026-07-07 — SalesSummary upsert uses Python-level SELECT-then-UPDATE-or-INSERT (audit F1)
+
+`INSERT ... ON CONFLICT DO UPDATE` (the standard PostgreSQL upsert) requires the conflict target to be a unique constraint or primary key column. `sales_summaries` is a TimescaleDB hypertable whose primary key is `(id, business_date)` — `id` is a UUID, not the natural business key. There is no unique constraint on `(restaurant_id, business_date)`. Adding one would require every TimescaleDB partition to carry it, which TimescaleDB does not support without also including the partition column in the constraint — a DDL complexity not worth the cost. The chosen approach: `_upsert_sales_summary()` does a date-range SELECT to find any existing row for that business day, then UPDATE (accumulate) or INSERT. This keeps the schema simple and the logic explicit. If throughput ever demands a DB-level upsert, add a `UNIQUE (restaurant_id, business_date)` partial index on a non-hypertable summary table and migrate the write path.
+
+## 2026-07-07 — DOW and daypart bucketing uses restaurant-local timezone (audit F2)
+
+`get_sales_patterns` (DOW) and `get_sales_patterns` daypart loop previously bucketed by UTC weekday and UTC hour. A Friday 11pm sale in New York (UTC-4) was counted as Saturday, and a dinner service starting at 5pm ET appeared as a 9pm UTC slot. The fix converts each `business_date` (stored as UTC) to the restaurant's local timezone via `zoneinfo.ZoneInfo` before extracting `.weekday()` and `.hour`. `_get_tz()` falls back to UTC if the restaurant has no timezone set. `zoneinfo` is Python 3.9+ stdlib; it works on this Windows box without the `tzdata` package (Windows supplies its own TZ database at the OS level).
+
+## 2026-07-07 — RecipeLine.channel NULL means "all channels"; non-NULL means channel-specific (audit F3)
+
+`recipe_lines.channel` is `String(30), nullable=True`. A NULL value means the ingredient is consumed for every sale regardless of channel (e.g., the base ingredients of a sandwich). A non-NULL value (e.g., `'delivery'`) means the ingredient is only consumed when the sale is through that channel (e.g., a delivery box). `deplete_from_sale` skips recipe lines where `channel IS NOT NULL AND channel != sale_channel`. This lets a single menu item have both universal and channel-specific recipe components. Any future recipe line with a channel value must match one of the canonical channel strings (`dine_in`, `takeout`, `delivery`, `catering`, `bar`) — there is no DB-level constraint enforcing this, so the router/UI must validate.
+
+## 2026-07-07 — Pydantic Literal replaces free-form strings for channel and adjustment_type (audit F9)
+
+API request bodies that previously accepted any string for `channel` (`SaleItem`, `ChannelFeeCreate`) and `adjustment_type` (`AdjustmentCreate`) now use `Pydantic Literal` types. Unknown values are rejected with HTTP 422 before reaching service code. The DB columns remain `String(30)` — the constraint lives at the API boundary (the only place user-supplied data enters). The canonical sets are `dine_in | takeout | delivery | catering | bar` for channel and `comp | void | discount` for adjustment type. Adding a new value requires updating the `Literal` in the schema file and re-deploying; it does not require a migration.
 
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->

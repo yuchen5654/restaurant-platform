@@ -21,7 +21,7 @@ def record_batch(
         {'menu_item_id': i.menu_item_id, 'quantity': i.quantity_sold, 'revenue': i.gross_revenue, 'channel': i.channel}
         for i in batch.items
     ]
-    records = deplete_batch(db, rid, sales, batch.business_date)
+    records = deplete_batch(db, rid, sales, batch.business_date, covers=batch.covers or 0)
     return {'recorded': len(records), 'business_date': batch.business_date.isoformat()}
 
 

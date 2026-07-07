@@ -6,12 +6,16 @@ Every public function returns plain dicts/lists; the router wraps them in Pydant
 from __future__ import annotations
 
 import uuid as _uuid
+import zoneinfo as _zoneinfo
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional
 
+from sqlalchemy import exc as _sa_exc
 from sqlalchemy import func, select, and_
 from sqlalchemy.orm import Session
+
+from app.models.restaurant import Restaurant
 
 from app.models.adjustments import SaleAdjustment
 from app.models.insights import RestaurantSettings
@@ -43,10 +47,17 @@ def get_or_create_settings(db: Session, restaurant_id: str) -> RestaurantSetting
         select(RestaurantSettings).where(RestaurantSettings.restaurant_id == rid)
     ).scalar_one_or_none()
     if row is None:
-        row = RestaurantSettings(restaurant_id=rid)
-        db.add(row)
-        db.commit()
-        db.refresh(row)
+        try:
+            row = RestaurantSettings(restaurant_id=rid)
+            db.add(row)
+            db.flush()   # caller owns the transaction; no commit here
+        except _sa_exc.IntegrityError:
+            # Concurrent first-request race: another session beat us; roll back the
+            # failed insert and re-select the row that now exists.
+            db.rollback()
+            row = db.execute(
+                select(RestaurantSettings).where(RestaurantSettings.restaurant_id == rid)
+            ).scalar_one()
     return row
 
 
@@ -214,7 +225,7 @@ def get_contribution_margins(db: Session, restaurant_id: str, window_days: int =
     rows = []
     for s in sales_rows:
         item = db.get(MenuItem, s.menu_item_id)
-        if not item:
+        if not item or item.restaurant_id != rid:
             continue
         plate_cost     = float(item.theoretical_food_cost)
         price          = float(item.menu_price)
@@ -539,9 +550,27 @@ _DAYPART_LABELS = [
 _DOW_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 
+def _get_tz(tz_str: str | None) -> _zoneinfo.ZoneInfo:
+    if not tz_str:
+        return _zoneinfo.ZoneInfo('UTC')
+    try:
+        return _zoneinfo.ZoneInfo(tz_str)
+    except Exception:
+        return _zoneinfo.ZoneInfo('UTC')
+
+
+def _localize(dt: datetime, tz: _zoneinfo.ZoneInfo) -> datetime:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(tz)
+
+
 def get_sales_patterns(db: Session, restaurant_id: str, window_days: int = 28) -> dict:
     rid   = _to_uuid(restaurant_id)
     since = _now() - timedelta(days=window_days)
+
+    restaurant = db.get(Restaurant, rid)
+    tz = _get_tz(restaurant.timezone if restaurant else None)
 
     all_rows = db.execute(
         select(SalesByItem)
@@ -555,11 +584,12 @@ def get_sales_patterns(db: Session, restaurant_id: str, window_days: int = 28) -
     if not all_rows:
         return {'dow': [], 'daypart': [], 'coverage_pct': 0.0}
 
-    # DOW aggregation (business_date always present)
+    # DOW aggregation — convert to restaurant-local time so a 23:30 UTC sale on
+    # Friday doesn't land in Saturday's bucket for an EST restaurant.
     dow_rev   = [0.0] * 7
     dow_units = [0]   * 7
     for row in all_rows:
-        wd = row.business_date.weekday()   # Mon=0
+        wd = _localize(row.business_date, tz).weekday()   # Mon=0
         dow_rev[wd]   += float(row.gross_revenue or 0)
         dow_units[wd] += int(row.quantity_sold or 0)
 
@@ -583,7 +613,7 @@ def get_sales_patterns(db: Session, restaurant_id: str, window_days: int = 28) -
     dp_rev   = {label: 0.0 for label, *_ in _DAYPART_LABELS}
     dp_units = {label: 0   for label, *_ in _DAYPART_LABELS}
     for row in timestamped:
-        h = row.business_date.hour
+        h = _localize(row.business_date, tz).hour
         for label, start, end in _DAYPART_LABELS:
             if start <= h < end:
                 dp_rev[label]   += float(row.gross_revenue or 0)

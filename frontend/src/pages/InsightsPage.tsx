@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
 
@@ -759,9 +760,27 @@ function PriceExperimentsTab() {
   )
 }
 
+const VALID_TABS = new Set(TABS.map(t => t.id))
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 export function InsightsPage() {
-  const [tab, setTab] = useState<Tab>('variance')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as Tab | null
+  const [tab, setTab] = useState<Tab>(
+    tabParam && VALID_TABS.has(tabParam) ? tabParam : 'variance'
+  )
+
+  // Keep tab in sync when the URL param changes (e.g. back/forward navigation
+  // or a Dashboard action link clicked while already on the Insights page).
+  useEffect(() => {
+    const p = searchParams.get('tab') as Tab | null
+    if (p && VALID_TABS.has(p) && p !== tab) setTab(p)
+  }, [searchParams])
+
+  const selectTab = (id: Tab) => {
+    setTab(id)
+    setSearchParams({ tab: id }, { replace: true })
+  }
 
   return (
     <div className='p-6 bg-slate-50 min-h-screen'>
@@ -772,7 +791,7 @@ export function InsightsPage() {
         {TABS.map(t => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-blue-600 text-blue-700'

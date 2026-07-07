@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
@@ -10,7 +12,7 @@ router = APIRouter(prefix='/channel-fees', tags=['channel-fees'])
 
 
 class ChannelFeeCreate(BaseModel):
-    channel:         str
+    channel:         Literal['dine_in', 'takeout', 'delivery', 'catering', 'bar']
     commission_rate: float
 
     @field_validator('commission_rate')

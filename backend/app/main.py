@@ -1,5 +1,17 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
+
+_log = logging.getLogger(__name__)
+_DEV_PLACEHOLDER = 'change-this-in-production-use-secrets-manager'
+if len(settings.SECRET_KEY) < 32 or settings.SECRET_KEY == _DEV_PLACEHOLDER:
+    _log.warning(
+        'SECRET_KEY is a dev placeholder or too short (<32 chars). '
+        'Replace with a strong random secret before any deployment.'
+    )
 
 app = FastAPI(title='Restaurant Platform API', version='1.0.0')
 app.add_middleware(
