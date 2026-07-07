@@ -18,4 +18,8 @@ celery_app.conf.beat_schedule = {
         'task':     'app.workers.tasks.fetch_nightly_weather',
         'schedule': crontab(hour=4, minute=0),
     },
+    'compute-benchmarks': {
+        'task':     'app.workers.tasks.compute_benchmarks',
+        'schedule': crontab(hour=4, minute=30),
+    },
 }

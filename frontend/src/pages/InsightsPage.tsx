@@ -2,21 +2,23 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
 
-type Tab = 'variance' | 'menu-eng' | 'margins' | 'price-trends' | 'pars' | 'patterns' | 'sensitivity' | 'break-even' | 'prime-cost' | 'channel' | 'waste' | 'adjustments'
+type Tab = 'variance' | 'menu-eng' | 'margins' | 'price-trends' | 'pars' | 'patterns' | 'sensitivity' | 'break-even' | 'prime-cost' | 'channel' | 'waste' | 'adjustments' | 'benchmarks' | 'price-experiments'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'variance',     label: 'Variance' },
-  { id: 'menu-eng',     label: 'Menu Eng' },
-  { id: 'margins',      label: 'Margins' },
-  { id: 'price-trends', label: 'Price Trends' },
-  { id: 'pars',         label: 'Pars' },
-  { id: 'patterns',     label: 'Patterns' },
-  { id: 'sensitivity',  label: 'Sensitivity' },
-  { id: 'break-even',   label: 'Break-Even' },
-  { id: 'prime-cost',   label: 'Prime Cost' },
-  { id: 'channel',      label: 'Channels' },
-  { id: 'waste',        label: 'Waste' },
-  { id: 'adjustments',  label: 'Adjustments' },
+  { id: 'variance',          label: 'Variance' },
+  { id: 'menu-eng',          label: 'Menu Eng' },
+  { id: 'margins',           label: 'Margins' },
+  { id: 'price-trends',      label: 'Price Trends' },
+  { id: 'pars',              label: 'Pars' },
+  { id: 'patterns',          label: 'Patterns' },
+  { id: 'sensitivity',       label: 'Sensitivity' },
+  { id: 'break-even',        label: 'Break-Even' },
+  { id: 'prime-cost',        label: 'Prime Cost' },
+  { id: 'channel',           label: 'Channels' },
+  { id: 'waste',             label: 'Waste' },
+  { id: 'adjustments',       label: 'Adjustments' },
+  { id: 'benchmarks',        label: 'Benchmarks' },
+  { id: 'price-experiments', label: 'Price Tests' },
 ]
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -610,6 +612,153 @@ function AdjustmentsTab() {
   )
 }
 
+// ── Benchmarks ───────────────────────────────────────────────────────────────
+function BenchmarksTab() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['insights', 'benchmarks'],
+    queryFn: () => api.get('/insights/benchmarks').then(r => r.data),
+  })
+  if (isLoading) return <EmptyState msg='Loading…' />
+  return (
+    <SectionCard title='Peer Benchmarks'>
+      <p className='text-xs text-slate-400 mb-4'>{data?.caveat}</p>
+      {(!data?.benchmarks?.length || data.benchmarks.every((r: any) => r.p50 == null)) ? (
+        <EmptyState msg='Not enough peer data yet — benchmarks appear once 5+ restaurants have data.' />
+      ) : (
+        <div className='space-y-4'>
+          {(data.benchmarks as any[]).filter((r: any) => r.p50 != null).map((r: any) => {
+            const own  = r.own_value
+            const p25  = r.p25
+            const p75  = r.p75
+            const p50  = r.p50
+            const pctPos = own != null && p25 != null && p75 != null && p75 !== p25
+              ? Math.min(100, Math.max(0, ((own - p25) / (p75 - p25)) * 100))
+              : null
+            return (
+              <div key={r.metric}>
+                <div className='flex justify-between text-sm mb-1'>
+                  <span className='font-medium text-slate-700'>{r.metric.replace(/_/g, ' ')}</span>
+                  <span className='text-slate-500'>
+                    own: <span className='font-semibold text-slate-800'>
+                      {own != null ? own.toFixed(1) : '—'}
+                    </span>
+                    {r.n != null && <span className='text-xs text-slate-400 ml-2'>n={r.n}</span>}
+                  </span>
+                </div>
+                {/* p25–p75 band */}
+                <div className='relative h-4 bg-slate-100 rounded'>
+                  <div
+                    className='absolute h-4 bg-blue-100 rounded'
+                    style={{ left: '0%', right: '0%' }}
+                  />
+                  {/* p50 marker */}
+                  <div
+                    className='absolute top-0 h-4 w-0.5 bg-blue-400'
+                    style={{ left: `${p25 != null && p75 != null && p75 !== p25 ? ((p50 - p25) / (p75 - p25)) * 100 : 50}%` }}
+                  />
+                  {/* own value marker */}
+                  {pctPos != null && (
+                    <div
+                      className='absolute top-0 h-4 w-1 bg-slate-800 rounded'
+                      style={{ left: `${pctPos}%` }}
+                    />
+                  )}
+                </div>
+                <div className='flex justify-between text-xs text-slate-400 mt-0.5'>
+                  <span>p25: {p25?.toFixed(1)}</span>
+                  <span>p50: {p50?.toFixed(1)}</span>
+                  <span>p75: {p75?.toFixed(1)}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
+// ── Price Experiments ────────────────────────────────────────────────────────
+const VERDICT_STYLE: Record<string, string> = {
+  'price change maintained or improved margin': 'text-green-700 bg-green-50',
+  'volume dropped significantly — consider reverting':   'text-red-700 bg-red-50',
+  'margin declined — monitor':                           'text-amber-700 bg-amber-50',
+  'insufficient data':                                   'text-slate-500 bg-slate-50',
+}
+
+function PriceExperimentsTab() {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['insights', 'price-experiments'],
+    queryFn: () => api.get('/insights/price-experiments').then(r => r.data),
+  })
+  if (isLoading) return <EmptyState msg='Loading…' />
+  if (!(data as any[]).length) return (
+    <SectionCard title='Price Test & Learn'>
+      <EmptyState msg='No price changes yet — use the menu item PATCH endpoint to record a price change and see before/after analysis here after 14 days.' />
+    </SectionCard>
+  )
+  return (
+    <SectionCard title='Price Test & Learn'>
+      <p className='text-xs text-slate-400 mb-4'>
+        Before/after analysis for price changes older than 14 days. Windows clamped by neighboring events, max 28d each.
+      </p>
+      <div className='space-y-4'>
+        {(data as any[]).map((r: any) => {
+          const verdictStyle = VERDICT_STYLE[r.verdict] ?? 'text-slate-500 bg-slate-50'
+          return (
+            <div key={r.event_id} className='border border-slate-100 rounded-lg p-4'>
+              <div className='flex items-center justify-between mb-2'>
+                <span className='font-semibold text-slate-800'>{r.item_name}</span>
+                <span className='text-xs text-slate-400'>
+                  {new Date(r.changed_at).toLocaleDateString()}
+                </span>
+              </div>
+              <div className='text-sm text-slate-600 mb-2'>
+                ${r.old_price?.toFixed(2)} → ${r.new_price?.toFixed(2)}
+                {r.price_change_pct != null && (
+                  <span className={`ml-2 font-semibold ${r.price_change_pct >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {r.price_change_pct >= 0 ? '+' : ''}{r.price_change_pct?.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              {/* Before/after mini bars */}
+              <div className='grid grid-cols-2 gap-3 text-xs mb-3'>
+                <div className='bg-slate-50 rounded p-2'>
+                  <div className='text-slate-400 mb-1'>Before ({r.before_days}d)</div>
+                  <div>{r.before_units_per_day?.toFixed(2)} units/day</div>
+                  <div>${r.before_margin_per_day?.toFixed(2)}/day margin</div>
+                </div>
+                <div className='bg-slate-50 rounded p-2'>
+                  <div className='text-slate-400 mb-1'>After ({r.after_days}d)</div>
+                  <div>
+                    {r.after_units_per_day?.toFixed(2)} units/day
+                    {r.units_delta_pct != null && (
+                      <span className={`ml-1 ${r.units_delta_pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ({r.units_delta_pct >= 0 ? '+' : ''}{r.units_delta_pct?.toFixed(1)}%)
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    ${r.after_margin_per_day?.toFixed(2)}/day margin
+                    {r.margin_delta_pct != null && (
+                      <span className={`ml-1 ${r.margin_delta_pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ({r.margin_delta_pct >= 0 ? '+' : ''}{r.margin_delta_pct?.toFixed(1)}%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className={`text-xs px-3 py-2 rounded ${verdictStyle}`}>
+                {r.verdict}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </SectionCard>
+  )
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 export function InsightsPage() {
   const [tab, setTab] = useState<Tab>('variance')
@@ -635,18 +784,20 @@ export function InsightsPage() {
         ))}
       </div>
 
-      {tab === 'variance'     && <VarianceTab />}
-      {tab === 'menu-eng'     && <MenuEngTab />}
-      {tab === 'margins'      && <MarginsTab />}
-      {tab === 'price-trends' && <PriceTrendsTab />}
-      {tab === 'pars'         && <ParsTab />}
-      {tab === 'patterns'     && <PatternsTab />}
-      {tab === 'sensitivity'  && <SensitivityTab />}
-      {tab === 'break-even'   && <BreakEvenTab />}
-      {tab === 'prime-cost'   && <PrimeCostTab />}
-      {tab === 'channel'      && <ChannelTab />}
-      {tab === 'waste'        && <WasteTab />}
-      {tab === 'adjustments'  && <AdjustmentsTab />}
+      {tab === 'variance'          && <VarianceTab />}
+      {tab === 'menu-eng'          && <MenuEngTab />}
+      {tab === 'margins'           && <MarginsTab />}
+      {tab === 'price-trends'      && <PriceTrendsTab />}
+      {tab === 'pars'              && <ParsTab />}
+      {tab === 'patterns'          && <PatternsTab />}
+      {tab === 'sensitivity'       && <SensitivityTab />}
+      {tab === 'break-even'        && <BreakEvenTab />}
+      {tab === 'prime-cost'        && <PrimeCostTab />}
+      {tab === 'channel'           && <ChannelTab />}
+      {tab === 'waste'             && <WasteTab />}
+      {tab === 'adjustments'       && <AdjustmentsTab />}
+      {tab === 'benchmarks'        && <BenchmarksTab />}
+      {tab === 'price-experiments' && <PriceExperimentsTab />}
     </div>
   )
 }

@@ -11,6 +11,8 @@ from app.models.insights import RestaurantSettings
 from app.models.labor import LaborEntry
 from app.models.adjustments import ChannelFee, SaleAdjustment
 from app.models.weather import WeatherDay
+from app.models.benchmarks import BenchmarkStats
+from app.models.price_events import MenuPriceEvent
 
 __all__ = [
     'Restaurant', 'User',
@@ -24,4 +26,6 @@ __all__ = [
     'LaborEntry',
     'ChannelFee', 'SaleAdjustment',
     'WeatherDay',
+    'BenchmarkStats',
+    'MenuPriceEvent',
 ]

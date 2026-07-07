@@ -34,7 +34,7 @@ Multi-tenant restaurant data & analytics platform for independent operators (1�
 - [ ] Step 10 — AWS deployment (`step-10-aws.md`) — **GATED: judgment call — deploy when there's a real user/demo/need**
 - [x] Step 11 — Insights core, existing data (`step-11-insights-core.md`)
 - [x] Step 12 — Insights requiring new inputs (`step-12-insights-inputs.md`)
-- [ ] Step 13 — Network & action layer (`step-13-insights-network.md`)
+- [x] Step 13 — Network & action layer (`step-13-insights-network.md`)
 
 Status key: `[ ]` not started · `[~]` in progress · `[x]` complete
 

@@ -234,5 +234,29 @@ The `SaleAdjustment` table and manual entry path are live. Toast's `appliedDisco
 
 docs/DECISIONS.md was created during Step 12 in the mistaken belief that no root DECISIONS.md existed. Root DECISIONS.md is canonical per the scaffold layout. docs/DECISIONS.md has been deleted; its Step 12 entries and improved Step 11 write-ups are merged here.
 
+## 2026-07-06 — BenchmarkStats has no restaurant_id (deliberate Step 13 exception) 
+
+`benchmark_stats` is the one table in the schema with no `restaurant_id`. It stores anonymous cross-restaurant percentiles (p25/p50/p75 + n). Attaching a restaurant_id would either (a) expose which restaurant's data contributed to which percentile (privacy violation) or (b) require a separate fan-out join that defeats the purpose. Each operator sees their own value vs anonymised percentiles — the underlying individual values are never stored or exposed. This is documented in `app/services/benchmark_service.py` and explicitly called out in the hard rule enforcement: n < 5 → row never written.
+
+## 2026-07-06 — Minimum cohort of 5 enforced at write time, not read time (Step 13)
+
+`run_benchmark_computation` checks `len(values) >= 5` before writing a `BenchmarkStats` row. This is earlier than a read-time guard because it eliminates the attack surface entirely — there is no row to query, no endpoint to probe. A read-time check would still persist the data; the write-time guard is the correct layer. `get_benchmarks` will return `benchmarks: []` with a "not enough peer data yet" caveat when no rows exist, matching the graceful empty state in the frontend.
+
+## 2026-07-06 — Price events auto-logged at PATCH time, not during commit service (Step 13)
+
+`MenuPriceEvent` rows are created inside the `PATCH /menu-items/{id}` route handler the moment `menu_price` changes. Alternative considered: a separate event-sourcing step inside `ingestion_commit_service`. Rejected because menu price changes are a deliberate operator action through the API — not a CSV/voice/OCR ingestion. Hooking the PATCH endpoint is the correct layer: explicit, tested, and not subject to ingestion-pipeline variability.
+
+## 2026-07-06 — Benchmark Celery task runs at 4:30am, after weather (Step 13)
+
+Beat schedule order: Toast pull 3:00am → alerts 3:30am → weather 4:00am → benchmarks 4:30am. Benchmarks are last because they call `get_prime_cost` and `get_covers_insight` per restaurant — the most DB-intensive aggregation. Running after Toast (which populates sales data) and weather ensures all inputs are fresh. The 30-minute gap between weather and benchmarks is ample for the weather task to complete even on large restaurant counts.
+
+## 2026-07-06 — Action list drawn from insights at call time, not pre-computed (Step 13)
+
+`get_daily_actions` calls the existing insight services inline (variance, pars, channel, prime cost, etc.). This avoids a separate "actions" precompute table and stays consistent with the Step 11/12 principle of deriving insights at query time. The downside is latency — 7 sub-queries per request. For an operator-facing dashboard that refreshes every 5 minutes, this is acceptable. If p95 exceeds 500ms in production, pre-compute in the nightly benchmark task.
+
+## 2026-07-06 — Action list action for price experiments uses verdict string match (Step 13)
+
+`get_daily_actions` surfaces a price-experiment action only when `verdict == 'volume dropped significantly — consider reverting'`. This is an exact string comparison. The verdict strings are defined in `price_experiment_service.py` and must not be changed without updating the action service. If the verdict set grows, centralise them into a module-level constant dict.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->

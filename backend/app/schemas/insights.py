@@ -193,3 +193,56 @@ class AdjustmentReportRow(BaseModel):
     pct_of_revenue:      Optional[float]
     flag_high:           bool
     recommended_action:  Optional[str]
+
+
+# ---------------------------------------------------------------------------
+# Step 13 schemas
+# ---------------------------------------------------------------------------
+
+class PriceExperimentRow(BaseModel):
+    event_id:              str
+    menu_item_id:          str
+    item_name:             str
+    old_price:             float
+    new_price:             float
+    price_change_pct:      Optional[float]
+    changed_at:            str
+    before_days:           int
+    after_days:            int
+    before_units_per_day:  float
+    after_units_per_day:   float
+    units_delta_pct:       Optional[float]
+    before_margin_per_day: float
+    after_margin_per_day:  float
+    margin_delta_pct:      Optional[float]
+    verdict:               str
+
+
+class BenchmarkMetricRow(BaseModel):
+    metric:      str
+    own_value:   Optional[float]
+    p25:         Optional[float]
+    p50:         Optional[float]
+    p75:         Optional[float]
+    n:           Optional[int]
+    cohort_used: Optional[str]
+
+
+class BenchmarkResponse(BaseModel):
+    own:        dict
+    benchmarks: list[BenchmarkMetricRow]
+    cohort:     Optional[str]
+    stat_date:  Optional[str]
+    caveat:     str
+
+
+class ActionItem(BaseModel):
+    severity:        str   # high | medium | low
+    text:            str
+    source_insight:  str
+    link_route:      str
+
+
+class DailyActionsResponse(BaseModel):
+    actions:    list[ActionItem]
+    empty_msg:  Optional[str]  # set when actions is empty

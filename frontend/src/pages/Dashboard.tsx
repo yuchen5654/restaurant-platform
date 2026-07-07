@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { subDays } from 'date-fns'
+import { Link } from 'react-router-dom'
 import api from '../api/client'
 import { KpiCard } from '../components/KpiCard'
+
+const SEVERITY_STYLE: Record<string, string> = {
+  high:   'bg-red-50 border-red-200 text-red-800',
+  medium: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+  low:    'bg-slate-50 border-slate-200 text-slate-600',
+}
 
 export function Dashboard() {
   const today    = new Date()
@@ -33,6 +40,11 @@ export function Dashboard() {
     queryKey: ['insights', 'prime-cost', 'dashboard'],
     queryFn:  () => api.get('/insights/prime-cost?window_days=28').then(r => r.data),
   })
+  const { data: actionsData } = useQuery({
+    queryKey: ['insights', 'actions'],
+    queryFn:  () => api.get('/insights/actions').then(r => r.data),
+    refetchInterval: 300_000,
+  })
 
   const fcAlert = fc?.food_cost_pct != null && Number(fc.food_cost_pct) > 35
 
@@ -40,11 +52,38 @@ export function Dashboard() {
   const totalVarianceValue = varianceFlagged.reduce((s: number, r: any) => s + Math.abs(r.variance_value ?? 0), 0)
   const varianceAlert = varianceFlagged.length > 0
 
+  const actionsList: any[] = (actionsData as any)?.actions ?? []
+
   return (
     <div className='p-6 bg-slate-50 min-h-screen'>
       <h1 className='text-2xl font-bold text-slate-800 mb-6'>Operations Dashboard</h1>
 
-      {/* Alert banners */}
+      {/* ── Today's actions ──────────────────────────────────────────────────── */}
+      <div className='mb-6 bg-white rounded-xl shadow-sm p-5'>
+        <h2 className='font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide'>Today's Actions</h2>
+        {actionsList.length === 0 ? (
+          <p className='text-slate-400 text-sm py-2 text-center'>
+            {(actionsData as any)?.empty_msg ?? 'No actions needed — all metrics in range.'}
+          </p>
+        ) : (
+          <div className='space-y-2'>
+            {actionsList.map((a: any, i: number) => (
+              <Link
+                key={i}
+                to={a.link_route}
+                className={`flex items-start gap-3 border rounded-lg px-4 py-3 hover:opacity-90 transition-opacity ${SEVERITY_STYLE[a.severity] ?? SEVERITY_STYLE.low}`}
+              >
+                <span className='font-bold shrink-0 mt-0.5'>
+                  {a.severity === 'high' ? '!' : a.severity === 'medium' ? '·' : '○'}
+                </span>
+                <span className='text-sm leading-snug'>{a.text}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Alert banners (unread high/medium system alerts) */}
       {(alerts ?? []).length > 0 && (
         <div className='mb-6 space-y-2'>
           {(alerts as any[]).map((a: any) => (
@@ -52,7 +91,25 @@ export function Dashboard() {
               a.severity === 'high' ? 'bg-red-50 text-red-800' : 'bg-yellow-50 text-yellow-800'
             }`}>
               <span className='font-bold shrink-0'>{a.severity === 'high' ? '!' : '·'}</span>
-              {a.message}
+              <div>
+                <span>{a.message}</span>
+                {/* Explanation sub-bullets */}
+                {a.extra_data?.explanation && (() => {
+                  const ex = a.extra_data.explanation
+                  const bullets: string[] = []
+                  for (const d of (ex.price_drivers ?? []).slice(0, 2))
+                    bullets.push(`${d.ingredient} up ${d.pct_change}%`)
+                  for (const d of (ex.mix_drivers ?? []).slice(0, 1))
+                    bullets.push(`${d.item} FC ${d.fc_pct}%`)
+                  if (ex.adj_driver)
+                    bullets.push(`adjustments $${ex.adj_driver.today_total} (avg $${ex.adj_driver.daily_avg}/day)`)
+                  return bullets.length > 0 ? (
+                    <ul className='mt-1 ml-2 text-xs list-disc list-inside opacity-80'>
+                      {bullets.map((b, bi) => <li key={bi}>{b}</li>)}
+                    </ul>
+                  ) : null
+                })()}
+              </div>
             </div>
           ))}
         </div>

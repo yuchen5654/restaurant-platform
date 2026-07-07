@@ -10,9 +10,12 @@ from app.schemas.insights import (
     SalesPatternsResponse, SensitivityRow, BreakEvenResponse,
     PrimeCostResponse, ChannelProfitabilityRow, CoversResponse,
     WasteDecompRow, AdjustmentReportRow,
+    PriceExperimentRow, BenchmarkResponse, BenchmarkMetricRow,
+    ActionItem, DailyActionsResponse,
 )
 from app.services import insights_service as svc
 from app.services import labor_service, channel_service, waste_decomposition_service
+from app.services import price_experiment_service, benchmark_service, action_service
 
 router = APIRouter(prefix='/insights', tags=['insights'])
 
@@ -173,3 +176,41 @@ def adjustment_report(
     rid: str     = Depends(get_current_restaurant_id),
 ):
     return svc.get_adjustment_report(db, rid, window_days)
+
+
+# 13.1 Peer Benchmarks
+@router.get('/benchmarks', response_model=BenchmarkResponse)
+def benchmarks(
+    db:  Session = Depends(get_db),
+    rid: str     = Depends(get_current_restaurant_id),
+):
+    result = benchmark_service.get_benchmarks(db, rid)
+    return BenchmarkResponse(
+        own        = result['own'],
+        benchmarks = [BenchmarkMetricRow(**r) for r in result['benchmarks']],
+        cohort     = result['cohort'],
+        stat_date  = result['stat_date'],
+        caveat     = result['caveat'],
+    )
+
+
+# 13.2 Price Experiments
+@router.get('/price-experiments', response_model=list[PriceExperimentRow])
+def price_experiments(
+    db:  Session = Depends(get_db),
+    rid: str     = Depends(get_current_restaurant_id),
+):
+    return price_experiment_service.get_price_experiments(db, rid)
+
+
+# 13.4 Daily Actions
+@router.get('/actions', response_model=DailyActionsResponse)
+def daily_actions(
+    db:  Session = Depends(get_db),
+    rid: str     = Depends(get_current_restaurant_id),
+):
+    actions = action_service.get_daily_actions(db, rid)
+    return DailyActionsResponse(
+        actions   = [ActionItem(**a) for a in actions],
+        empty_msg = action_service._EMPTY_MSG if not actions else None,
+    )

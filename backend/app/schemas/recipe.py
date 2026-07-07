@@ -11,6 +11,13 @@ class MenuItemCreate(BaseModel):
     pos_item_id: Optional[str] = None
 
 
+class MenuItemPatch(BaseModel):
+    name:       Optional[str]     = None
+    category:   Optional[str]     = None
+    menu_price: Optional[Decimal] = None
+    is_active:  Optional[bool]    = None
+
+
 class RecipeLineCreate(BaseModel):
     ingredient_id: str
     quantity: Decimal

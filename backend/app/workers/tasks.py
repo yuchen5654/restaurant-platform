@@ -69,6 +69,21 @@ def fetch_nightly_weather():
 
 
 @celery_app.task
+def compute_benchmarks():
+    """Nightly task: aggregate cross-restaurant benchmark percentiles. n<5 -> no row written."""
+    from app.services.benchmark_service import run_benchmark_computation
+
+    db = SessionLocal()
+    try:
+        run_benchmark_computation(db)
+        logger.info('Benchmark computation complete')
+    except Exception:
+        logger.exception('Benchmark computation failed')
+    finally:
+        db.close()
+
+
+@celery_app.task
 def run_nightly_alerts():
     from app.services.alert_service import run_alerts_for_restaurant
 

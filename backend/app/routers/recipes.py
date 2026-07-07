@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.recipe import MenuItem, RecipeLine
 from app.routers.auth import get_current_restaurant_id
-from app.schemas.recipe import MenuItemCreate, RecipeLineCreate
+from app.schemas.recipe import MenuItemCreate, MenuItemPatch, RecipeLineCreate
 
 router = APIRouter(prefix='/menu-items', tags=['recipes'])
 
@@ -39,6 +39,31 @@ def create_menu_item(
     db.commit()
     db.refresh(obj)
     return obj
+
+
+@router.patch('/{item_id}')
+def patch_menu_item(
+    item_id: str,
+    body: MenuItemPatch,
+    db:  Session = Depends(get_db),
+    rid: str     = Depends(get_current_restaurant_id),
+):
+    mi = db.get(MenuItem, _to_uuid(item_id))
+    if not mi or mi.restaurant_id != _to_uuid(rid):
+        raise HTTPException(404, 'Not found')
+
+    fields = {k: v for k, v in body.model_dump().items() if k in body.model_fields_set}
+
+    # Auto-log a price event whenever menu_price changes
+    if 'menu_price' in fields and fields['menu_price'] != mi.menu_price:
+        from app.services.price_experiment_service import log_price_event
+        log_price_event(db, rid, item_id, old_price=mi.menu_price, new_price=fields['menu_price'])
+
+    for k, v in fields.items():
+        setattr(mi, k, v)
+    db.commit()
+    db.refresh(mi)
+    return mi
 
 
 @router.post('/{item_id}/recipe-lines', status_code=201)
