@@ -14,4 +14,8 @@ celery_app.conf.beat_schedule = {
         'task':     'app.workers.tasks.run_nightly_alerts',
         'schedule': crontab(hour=3, minute=30),
     },
+    'fetch-nightly-weather': {
+        'task':     'app.workers.tasks.fetch_nightly_weather',
+        'schedule': crontab(hour=4, minute=0),
+    },
 }

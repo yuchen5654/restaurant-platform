@@ -200,5 +200,39 @@ Used `alembic revision --autogenerate` requires a live DB connection; Docker was
 
 `get_sales_patterns` detects manual (date-only) entries by checking whether `business_date.hour == 12 and business_date.minute == 0`. This works because `QuickSalesEntry.tsx` anchors manual dates to `T12:00:00Z`. It is fragile: a POS order that genuinely arrives at noon UTC is misclassified as manual, and any future ingestion path that sets a different convention will break it silently. The correct fix is an explicit `source` or `has_timestamp` boolean column on `sales_by_item` / `sales_summaries` — to be added alongside the `channel` column in Step 12 when new ingestion sources (delivery platforms, labor imports) are introduced. Until then the heuristic is documented here so the fragility is visible.
 
+**Superseded 2026-07-06 (Step 12):** Coverage now uses `source == 'toast'`. CSV imports set `source='csv'` and are date-only like manual entries — they must not count as timestamped. See Step 12 daypart entry below.
+
+## 2026-07-06 — Daypart coverage switched from noon-UTC heuristic to source=='toast' (Step 12)
+
+`get_sales_patterns` now classifies a `SalesByItem` row as "timestamped" (eligible for daypart bucketing) only when `source == 'toast'`. Manual entries and CSV imports are both date-only and must not count. `source != 'manual'` would wrongly include CSV rows. The only current source that provides real intraday timestamps is Toast. Any future POS integration delivering real timestamps should set `source='<pos_name>'` (not `'manual'` or `'csv'`) and will qualify for daypart analysis automatically.
+
+## 2026-07-06 — commission_rate stored as fraction, not percentage (Step 12)
+
+`channel_fees.commission_rate` is `Numeric(5,4)`, max value 9.9999. Storing a percentage (e.g. 15) overflows. Storing the fraction (0.1500 = 15%) fits within range and matches financial convention. Pydantic validates `0 ≤ rate ≤ 1` at the API layer. All arithmetic uses the fraction directly (`commission = revenue × rate`); displays multiply by 100.
+
+## 2026-07-06 — RevPASH deferred; shipping "revenue per seat per day" instead (Step 12)
+
+True RevPASH (Revenue Per Available Seat Hour) requires `daily_open_hours` per day — a setting that doesn't exist yet. `get_covers_insight` returns `revenue_per_seat_per_day = total_revenue / (seat_count × window_days)` and labels it exactly that. Revenue ÷ (covers × seat_count) is not RevPASH and not meaningful. When `RestaurantSettings.daily_open_hours` is added, replace the denominator with `seat_count × open_hours × window_days` and relabel to RevPASH.
+
+## 2026-07-06 — Prime Cost KPI replaces "Items Tracked" on Dashboard (Step 12)
+
+"Items Tracked" (count of menu items with recent sales) was an operational metric with no actionable interpretation at the dashboard level. Prime Cost % (food + labor as % of revenue) is the most important combined cost signal in foodservice — anything above 62% typically means fixed costs cannot be covered. The card alerts (red) at >62% and shows target "62%". Approved before build and logged in the plan.
+
+## 2026-07-06 — Toast comps/voids not yet auto-imported as SaleAdjustment (Step 12)
+
+The `SaleAdjustment` table and manual entry path are live. Toast's `appliedDiscounts` and `voidedPayments` are not yet parsed into `sale_adjustments` during the nightly pull — the Toast payload taxonomy varies by POS config and requires a sample payload from a real customer to map correctly. When adding: parse `appliedDiscounts[].appliedDiscountReason` → `adjustment_type='comp'` or `'discount'`, set `source='toast'`.
+
+## 2026-07-06 — Weather fetch uses Open-Meteo archive API; no API key required (Step 12)
+
+`fetch_weather_for_restaurant` calls `archive-api.open-meteo.com/v1/archive` (historical daily data, no auth). The nightly Celery task runs at 4:00am UTC — after the Toast pull (3:00am) and alerts (3:30am) — and fetches yesterday's weather for all restaurants with `lat/lon` set. Verification scripts insert `weather_days` rows directly to avoid live HTTP calls in tests. The 1-day lag (fetching yesterday) is acceptable: operators compare weather to prior-day sales patterns, not same-day.
+
+## 2026-07-06 — Channel strings are free-form; QuickSalesEntry dropdown is the canonical set (Step 12)
+
+`channel_fees.channel` and `sales_by_item.channel` are plain `String(30)` — no enum constraint. Fee matching in `get_channel_profitability` is an exact string lookup (`fees.get(channel, 0.0)`). The QuickSalesEntry dropdown (dine_in, takeout, delivery, catering, bar) is the canonical set operators should also use when creating channel fees. A fee created for `'delivery'` matches sales tagged `channel='delivery'` exactly. Future UI for fee management should present the same canonical list or a free-text field with autocomplete from existing fee rows.
+
+## 2026-07-06 — Consolidated DECISIONS.md into root (this file)
+
+docs/DECISIONS.md was created during Step 12 in the mistaken belief that no root DECISIONS.md existed. Root DECISIONS.md is canonical per the scaffold layout. docs/DECISIONS.md has been deleted; its Step 12 entries and improved Step 11 write-ups are merged here.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->
