@@ -35,6 +35,8 @@ def log_price_event(
     old_price: Decimal,
     new_price: Decimal,
 ) -> MenuPriceEvent:
+    # flush only — caller (the PATCH handler) owns the transaction and commits after
+    # updating the menu item. This keeps the event and the price change atomic.
     event = MenuPriceEvent(
         restaurant_id=_to_uuid(restaurant_id),
         menu_item_id=_to_uuid(menu_item_id),
@@ -42,8 +44,7 @@ def log_price_event(
         new_price=new_price,
     )
     db.add(event)
-    db.commit()
-    db.refresh(event)
+    db.flush()
     return event
 
 

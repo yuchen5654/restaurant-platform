@@ -258,5 +258,13 @@ Beat schedule order: Toast pull 3:00am → alerts 3:30am → weather 4:00am → 
 
 `get_daily_actions` surfaces a price-experiment action only when `verdict == 'volume dropped significantly — consider reverting'`. This is an exact string comparison. The verdict strings are defined in `price_experiment_service.py` and must not be changed without updating the action service. If the verdict set grows, centralise them into a module-level constant dict.
 
+## 2026-07-07 — Dogs action uses "currently Dogs in 60d window", not "persistently Dogs" (Step 13)
+
+The step file describes surfacing menu items that have been in the Dog quadrant for 60+ days — implying quadrant-history tracking. The implementation uses a simpler 60d `get_menu_engineering` window and flags all current Dogs. These semantics are different: a newly appeared Dog in the last 60d window will fire, while a persistent Dog that briefly left and returned within 60d will also fire. The stricter "persistently in Dog quadrant" version would require storing daily quadrant snapshots or running two windows (current + prior) and intersecting them. Deferred: the current version provides the signal operators need (low-volume, low-margin items) without the schema overhead of quadrant history.
+
+## 2026-07-07 — log_price_event uses db.flush(), not db.commit() (Step 13 follow-up)
+
+`log_price_event` was originally committing its own transaction, which created an orphan `MenuPriceEvent` row if the menu-item PATCH subsequently failed (e.g., due to a validation error or DB constraint). Fixed to `db.flush()` only — the PATCH handler owns the transaction and commits once, after both the price update and the event are in the session. This makes the event and the price change atomic: if either fails the entire transaction rolls back.
+
 <!-- ## 2026-XX-XX — Title
 Decision and reasoning here. -->
