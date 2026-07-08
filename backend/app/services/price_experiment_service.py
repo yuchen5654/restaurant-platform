@@ -149,9 +149,8 @@ def get_price_experiments(db: Session, restaurant_id: str) -> list[dict]:
                 .where(
                     SalesByItem.restaurant_id == rid,
                     SalesByItem.menu_item_id  == event.menu_item_id,
-                    # Compare date columns directly to avoid UTC-vs-naive timezone mismatch
-                    SalesByItem.business_date >= start.date(),
-                    SalesByItem.business_date <  end.date(),
+                    SalesByItem.business_date >= start,
+                    SalesByItem.business_date <  end,
                 )
             ).one()
             units  = int(row.units)
